@@ -15,6 +15,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
 
 
 /**
@@ -37,6 +42,22 @@ public class WebSecurityConfig {
 
     private final UsernameAuthenticationFilter usernameAuthenticationFilter;
     private final MailAuthenticationFilter mailAuthenticationFilter;
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+        CorsConfiguration corsConfig = new CorsConfiguration();
+        corsConfig.setAllowCredentials(true);
+        corsConfig.addAllowedOriginPattern("*");
+        corsConfig.addAllowedHeader("*");
+        corsConfig.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        corsConfig.setMaxAge(3600L);
+
+        source.registerCorsConfiguration("/**", corsConfig);
+        return source;
+    }
+
 
     private void commonHttpSetting(HttpSecurity http) {
         http.formLogin(AbstractHttpConfigurer::disable)
@@ -62,6 +83,8 @@ public class WebSecurityConfig {
                 .accessDeniedHandler(accessDeniedHandler) // 权限不足处理
 
         );
+
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
     }
 
     @Bean
