@@ -26,9 +26,48 @@ CREATE TABLE sys_user
     update_time     DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted         TINYINT       DEFAULT 0,
     ext_json        VARCHAR(2000) DEFAULT '{}',
-    INDEX           idx_username (username),
-    INDEX           idx_user_type (user_type)
+    INDEX idx_username (username),
+    INDEX idx_user_type (user_type)
 ) COMMENT '系统用户表';
+
+INSERT INTO sys_user
+(username, password, real_name, phone, email, avatar, user_type, grade, school, status,
+ last_login_time, last_login_ip, create_by, update_by, ext_json)
+VALUES
+-- 1. 超级管理员（最高权限）
+('admin_super',
+ '$2a$10$iuHZOEzx2sT2PNA/lkNl7.EHkPqAehp7Oppzf7W4xEZyyUhwqzwZO',
+ '系统超级管理员',
+ '13800000001',
+ 'superadmin@edu-platform.com',
+ '/avatar/super_admin.png',
+ 5,
+ NULL,
+ NULL,
+ 1,
+ '2026-07-07 09:25:10',
+ '192.168.1.100',
+ NULL,
+ NULL,
+ '{}'),
+
+-- 2. 平台管理员
+('admin_platform',
+ '$2a$10$iuHZOEzx2sT2PNA/lkNl7.EHkPqAehp7Oppzf7W4xEZyyUhwqzwZO',
+ '平台运营管理员',
+ '13800000002',
+ 'platform@edu-platform.com',
+ '/avatar/platform_admin.png',
+ 4,
+ NULL,
+ NULL,
+ 1,
+ '2026-07-07 08:10:33',
+ '192.168.1.101',
+ 1,
+ 1,
+ '{}');
+
 
 DROP TABLE IF EXISTS sys_role;
 CREATE TABLE sys_role
@@ -54,8 +93,8 @@ CREATE TABLE sys_user_role
     role_id     BIGINT NOT NULL COMMENT '角色ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_user_role (user_id, role_id),
-    INDEX       idx_user_id (user_id),
-    INDEX       idx_role_id (role_id)
+    INDEX idx_user_id (user_id),
+    INDEX idx_role_id (role_id)
 ) COMMENT '用户角色关联';
 
 DROP TABLE IF EXISTS sys_menu;
@@ -84,7 +123,7 @@ CREATE TABLE sys_role_menu
     role_id BIGINT NOT NULL,
     menu_id BIGINT NOT NULL,
     UNIQUE KEY uk_role_menu (role_id, menu_id),
-    INDEX   idx_role_id (role_id)
+    INDEX idx_role_id (role_id)
 ) COMMENT '角色菜单关联';
 
 DROP TABLE IF EXISTS sys_jwt_token;
@@ -97,8 +136,8 @@ CREATE TABLE sys_jwt_token
     status      TINYINT  DEFAULT 1 COMMENT '0失效 1有效',
     device      VARCHAR(100) COMMENT '登录设备',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX       idx_user_id (user_id),
-    INDEX       idx_token (token(200))
+    INDEX idx_user_id (user_id),
+    INDEX idx_token (token(200))
 ) COMMENT 'JWT令牌存储，实现主动登出';
 
 DROP TABLE IF EXISTS sys_operation_log;
@@ -114,8 +153,8 @@ CREATE TABLE sys_operation_log
     params         TEXT COMMENT '请求参数',
     cost_time      BIGINT COMMENT '耗时ms',
     create_time    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX          idx_user_id (user_id),
-    INDEX          idx_create_time (create_time)
+    INDEX idx_user_id (user_id),
+    INDEX idx_create_time (create_time)
 ) COMMENT '系统操作日志';
 
 -- 二、班级教学管理模块
@@ -136,8 +175,8 @@ CREATE TABLE edu_class
     update_time   DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted       TINYINT       DEFAULT 0,
     ext_json      VARCHAR(2000) DEFAULT '{}',
-    INDEX         idx_teacher_id (teacher_id),
-    INDEX         idx_class_code (class_code)
+    INDEX idx_teacher_id (teacher_id),
+    INDEX idx_class_code (class_code)
 ) COMMENT '教学班级';
 
 DROP TABLE IF EXISTS edu_class_student;
@@ -148,8 +187,8 @@ CREATE TABLE edu_class_student
     student_id BIGINT NOT NULL COMMENT '学生用户ID',
     join_time  DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '入班时间',
     UNIQUE KEY uk_class_student (class_id, student_id),
-    INDEX      idx_class_id (class_id),
-    INDEX      idx_student_id (student_id)
+    INDEX idx_class_id (class_id),
+    INDEX idx_student_id (student_id)
 ) COMMENT '班级学生关联';
 
 DROP TABLE IF EXISTS edu_course_class;
@@ -161,7 +200,7 @@ CREATE TABLE edu_course_class
     publish_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '下发时间',
     deadline     DATETIME COMMENT '完成截止时间',
     UNIQUE KEY uk_course_class (course_id, class_id),
-    INDEX        idx_class_id (class_id)
+    INDEX idx_class_id (class_id)
 ) COMMENT '课程下发班级';
 
 -- 三、课程 & 学习进度模块
@@ -186,9 +225,9 @@ CREATE TABLE edu_course
     update_time    DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted        TINYINT       DEFAULT 0,
     ext_json       VARCHAR(2000) DEFAULT '{}',
-    INDEX          idx_teacher_id (teacher_id),
-    INDEX          idx_grade (grade),
-    INDEX          idx_course_type (course_type)
+    INDEX idx_teacher_id (teacher_id),
+    INDEX idx_grade (grade),
+    INDEX idx_course_type (course_type)
 ) COMMENT 'AI课程主表';
 
 DROP TABLE IF EXISTS edu_chapter;
@@ -205,7 +244,7 @@ CREATE TABLE edu_chapter
     update_time  DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted      TINYINT       DEFAULT 0,
     ext_json     VARCHAR(2000) DEFAULT '{}',
-    INDEX        idx_course_id (course_id)
+    INDEX idx_course_id (course_id)
 ) COMMENT '课程章节';
 
 DROP TABLE IF EXISTS edu_resource;
@@ -225,7 +264,7 @@ CREATE TABLE edu_resource
     update_time   DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted       TINYINT       DEFAULT 0,
     ext_json      VARCHAR(2000) DEFAULT '{}',
-    INDEX         idx_chapter_id (chapter_id)
+    INDEX idx_chapter_id (chapter_id)
 ) COMMENT '课程配套学习资源';
 
 DROP TABLE IF EXISTS edu_study_record;
@@ -242,8 +281,8 @@ CREATE TABLE edu_study_record
     last_study_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     create_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_stu_chapter (student_id, chapter_id),
-    INDEX           idx_student_id (student_id),
-    INDEX           idx_course_id (course_id)
+    INDEX idx_student_id (student_id),
+    INDEX idx_course_id (course_id)
 ) COMMENT '学生学习进度记录';
 
 -- 四、实践创作 & 在线实验模块
@@ -266,8 +305,8 @@ CREATE TABLE edu_project_task
     update_time   DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted       TINYINT       DEFAULT 0,
     ext_json      VARCHAR(2000) DEFAULT '{}',
-    INDEX         idx_teacher_id (teacher_id),
-    INDEX         idx_course_id (course_id)
+    INDEX idx_teacher_id (teacher_id),
+    INDEX idx_course_id (course_id)
 ) COMMENT 'AI实践项目任务';
 
 DROP TABLE IF EXISTS edu_student_project;
@@ -286,8 +325,8 @@ CREATE TABLE edu_student_project
     update_time   DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted       TINYINT       DEFAULT 0,
     ext_json      VARCHAR(2000) DEFAULT '{}',
-    INDEX         idx_student_id (student_id),
-    INDEX         idx_task_id (task_id)
+    INDEX idx_student_id (student_id),
+    INDEX idx_task_id (task_id)
 ) COMMENT '学生创作项目作品';
 
 DROP TABLE IF EXISTS edu_experiment_log;
@@ -302,7 +341,7 @@ CREATE TABLE edu_experiment_log
     cost_second        INT      DEFAULT 0 COMMENT '运行耗时',
     gpu_used           TINYINT  DEFAULT 0 COMMENT '是否使用GPU算力',
     create_time        DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX              idx_student_project_id (student_project_id)
+    INDEX idx_student_project_id (student_project_id)
 ) COMMENT '在线实验运行日志';
 
 -- 五、作品展示广场模块
@@ -327,8 +366,8 @@ CREATE TABLE edu_project_show
     deleted            TINYINT       DEFAULT 0,
     ext_json           VARCHAR(2000) DEFAULT '{}',
     UNIQUE KEY uk_project (student_project_id),
-    INDEX              idx_student_id (student_id),
-    INDEX              idx_status (status)
+    INDEX idx_student_id (student_id),
+    INDEX idx_status (status)
 ) COMMENT '作品广场公开展示';
 
 DROP TABLE IF EXISTS edu_project_comment;
@@ -341,7 +380,7 @@ CREATE TABLE edu_project_comment
     content     TEXT   NOT NULL COMMENT '评论内容',
     status      TINYINT  DEFAULT 1 COMMENT '0屏蔽 1正常',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX       idx_show_id (show_id)
+    INDEX idx_show_id (show_id)
 ) COMMENT '作品评论';
 
 -- 六、AI 统一接入层模块
@@ -379,8 +418,8 @@ CREATE TABLE ai_chat_session
     create_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted      TINYINT  DEFAULT 0,
-    INDEX        idx_user_id (user_id),
-    INDEX        idx_scene_type (scene_type)
+    INDEX idx_user_id (user_id),
+    INDEX idx_scene_type (scene_type)
 ) COMMENT 'AI智能助手会话';
 
 DROP TABLE IF EXISTS ai_chat_message;
@@ -393,7 +432,7 @@ CREATE TABLE ai_chat_message
     reference_ids VARCHAR(1000) COMMENT 'RAG引用知识库文档ID逗号分隔',
     token_cost    INT      DEFAULT 0 COMMENT '消耗token数量',
     create_time   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX         idx_session_id (session_id)
+    INDEX idx_session_id (session_id)
 ) COMMENT 'AI对话消息记录';
 
 DROP TABLE IF EXISTS ai_invoke_record;
@@ -410,8 +449,8 @@ CREATE TABLE ai_invoke_record
     status       TINYINT     NOT NULL COMMENT '调用状态：0失败 1成功',
     error_msg    TEXT COMMENT '调用失败时存储异常信息',
     create_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX        idx_user_id (user_id),
-    INDEX        idx_create_time (create_time)
+    INDEX idx_user_id (user_id),
+    INDEX idx_create_time (create_time)
 ) COMMENT 'AI能力调用日志，用于算力统计、配额管控、调用量对账';
 
 -- 七、RAG 教育知识库模块
@@ -431,7 +470,7 @@ CREATE TABLE rag_knowledge_base
     update_time     DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted         TINYINT       DEFAULT 0,
     ext_json        VARCHAR(2000) DEFAULT '{}',
-    INDEX           idx_kb_type (kb_type)
+    INDEX idx_kb_type (kb_type)
 ) COMMENT 'RAG知识库总库';
 
 DROP TABLE IF EXISTS rag_document;
@@ -449,7 +488,7 @@ CREATE TABLE rag_document
     update_time DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted     TINYINT       DEFAULT 0,
     ext_json    VARCHAR(2000) DEFAULT '{}',
-    INDEX       idx_kb_id (kb_id)
+    INDEX idx_kb_id (kb_id)
 ) COMMENT '知识库文档';
 
 DROP TABLE IF EXISTS rag_chunk;
@@ -463,8 +502,8 @@ CREATE TABLE rag_chunk
     vector      TEXT COMMENT '向量数组JSON（简易存储，生产建议向量数据库Milvus）',
     source_page VARCHAR(100) COMMENT '原文页码/段落，溯源使用',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX       idx_doc_id (doc_id),
-    INDEX       idx_kb_id (kb_id)
+    INDEX idx_doc_id (doc_id),
+    INDEX idx_kb_id (kb_id)
 ) COMMENT '文档拆分向量块，RAG检索数据源';
 
 -- 八、评价 & 学情数据闭环模块
@@ -484,8 +523,8 @@ CREATE TABLE edu_project_evaluate
     evaluate_time      DATETIME COMMENT '评阅时间',
     create_time        DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_project_eva (student_project_id),
-    INDEX              idx_student_id (student_id),
-    INDEX              idx_task_id (task_id)
+    INDEX idx_student_id (student_id),
+    INDEX idx_task_id (task_id)
 ) COMMENT '项目作品评价表';
 
 DROP TABLE IF EXISTS edu_student_portrait;
@@ -502,7 +541,7 @@ CREATE TABLE edu_student_portrait
     last_update_time    DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     create_time         DATETIME      DEFAULT CURRENT_TIMESTAMP,
     ext_json            VARCHAR(2000) DEFAULT '{}',
-    INDEX               idx_student_id (student_id)
+    INDEX idx_student_id (student_id)
 ) COMMENT '学生AI素养能力画像';
 
 DROP TABLE IF EXISTS edu_class_analysis;
@@ -518,7 +557,7 @@ CREATE TABLE edu_class_analysis
     stat_date           DATE   NOT NULL COMMENT '统计日期',
     create_time         DATETIME      DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_class_course_date (class_id, course_id, stat_date),
-    INDEX               idx_class_id (class_id)
+    INDEX idx_class_id (class_id)
 ) COMMENT '班级学情分析快照表';
 
 DROP TABLE IF EXISTS edu_growth_file;
@@ -530,5 +569,5 @@ CREATE TABLE edu_growth_file
     file_url    VARCHAR(255) NOT NULL COMMENT 'PDF档案地址',
     file_type   TINYINT      NOT NULL COMMENT '1月度档案 2学期档案 3学年完整档案',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX       idx_student_id (student_id)
+    INDEX idx_student_id (student_id)
 ) COMMENT '学生AI成长电子档案文件';

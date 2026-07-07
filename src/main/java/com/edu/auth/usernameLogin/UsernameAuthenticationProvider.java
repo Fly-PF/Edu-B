@@ -1,0 +1,74 @@
+package com.edu.auth.usernameLogin;
+
+import com.edu.repository.SysUserRepository;
+import com.edu.auth.entity.UsernameLoginReq;
+import com.edu.pojo.dto.UserInfoDTO;
+import com.edu.pojo.po.SysUserPO;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+/**
+ * 描述
+ *
+ * @author Fly
+ * @since 2026-03-17 12:14
+ */
+@Component
+@RequiredArgsConstructor
+public class UsernameAuthenticationProvider implements AuthenticationProvider {
+
+    private final SysUserRepository sysUserRepository;
+
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    public @Nullable Authentication authenticate(
+            @NonNull Authentication authentication
+    ) throws AuthenticationException {
+        Object object = authentication.getPrincipal();
+
+        if(object instanceof UserInfoDTO userInfoDTO){
+            UsernameAuthentication userAuthenticated = new UsernameAuthentication();
+            userAuthenticated.setUserInfoDTO(userInfoDTO);
+            userAuthenticated.setAuthenticated(true);
+            return userAuthenticated;
+        }
+
+        UsernameLoginReq usernameLoginReq = (UsernameLoginReq) object;
+        if (usernameLoginReq == null) {
+            throw new BadCredentialsException("用户登录请求参数错误！");
+        }
+
+        SysUserPO sysUserPO = sysUserRepository.selectUserByUsername(usernameLoginReq.getUsername());
+        if(sysUserPO == null){
+            throw new BadCredentialsException("用户不存在！");
+        }
+        if(!passwordEncoder.matches(usernameLoginReq.getPassword(), sysUserPO.getPassword())){
+            throw new BadCredentialsException("密码错误！");
+        }
+
+        UserInfoDTO userInfoDTO = UserInfoDTO.builder()
+                .userId(sysUserPO.getId())
+                .username(sysUserPO.getUsername())
+                .realName(sysUserPO.getRealName())
+                .email(sysUserPO.getEmail())
+                .build();
+
+        UsernameAuthentication userAuthenticated = new UsernameAuthentication();
+        userAuthenticated.setUserInfoDTO(userInfoDTO);
+        userAuthenticated.setAuthenticated(true);
+        return userAuthenticated;
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return authentication.isAssignableFrom(UsernameAuthentication.class);
+    }
+}

@@ -1,3 +1,23 @@
 spring:
   application:
     name: Edu-B
+  profiles:
+    active: dev
+  main:
+    allow-circular-references: true
+  datasource:
+    driver-class-name: ${edu.datasource.driver-class-name}
+    username: ${edu.datasource.username}
+    password: ${edu.datasource.password}
+    url: jdbc:mysql://${edu.datasource.host}:${edu.datasource.port}/${edu.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+  data:
+    redis:
+      host: ${edu.redis.host}
+      port: ${edu.redis.port}
+      password: ${edu.redis.password}
+      database: ${edu.redis.database}
+      connect-timeout: 10s
+
+logging:
+  level:
+    org.springframework.security: DEBUG
