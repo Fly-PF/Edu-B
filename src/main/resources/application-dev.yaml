@@ -1,16 +1,17 @@
 edu:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: 192.168.40.128
+    host: 127.0.0.1
     port: 3306
     database: edu
     username: root
     password: root
   redis:
-    host: 192.168.40.128
+    host: 127.0.0.1
     port: 6379
     password: root
     database: 6
+  # jwt、mail 不用改动，本地自测完全通用
   jwt:
     secret-key: abcdefghijklmnopqabcdefghijklmnopq
     expire-time: 7200000
