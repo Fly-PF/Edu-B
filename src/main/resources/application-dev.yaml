@@ -15,3 +15,8 @@ edu:
     secret-key: abcdefghijklmnopqabcdefghijklmnopq
     expire-time: 7200000
     jwt-name: Authorization
+  mail:
+    from-name: Edu-B
+    captcha:
+      length: 6
+      expire-minutes: 5

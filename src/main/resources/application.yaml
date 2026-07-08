@@ -17,7 +17,17 @@ spring:
       password: ${edu.redis.password}
       database: ${edu.redis.database}
       connect-timeout: 10s
-
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: your@qq.com
+    password: your-auth-code
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
 logging:
   level:
     org.springframework.security: DEBUG
