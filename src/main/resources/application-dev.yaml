@@ -1,13 +1,13 @@
 edu:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: 127.0.0.1
+    host: 192.168.40.128
     port: 3306
     database: edu
     username: root
     password: root
   redis:
-    host: 127.0.0.1
+    host: 192.168.40.128
     port: 6379
     password: root
     database: 6
