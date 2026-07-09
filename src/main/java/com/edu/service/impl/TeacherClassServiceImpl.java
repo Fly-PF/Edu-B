@@ -3,6 +3,7 @@ package com.edu.service.impl;
 import com.edu.common.PageQuery;
 import com.edu.common.PageResult;
 import com.edu.exception.UserErrorException;
+import com.edu.pojo.dto.CourseAssignmentDTO;
 import com.edu.pojo.dto.CourseAssignmentReq;
 import com.edu.pojo.dto.CourseDeadlineDTO;
 import com.edu.pojo.dto.TeacherClassCodeDTO;
@@ -273,12 +274,12 @@ public class TeacherClassServiceImpl implements TeacherClassService {
     }
 
     @Override
-    public TeacherClassCourseDTO assignCourse(CourseAssignmentReq req) {
+    public CourseAssignmentDTO assignCourse(CourseAssignmentReq req) {
         if (req == null) {
             throw new UserErrorException(HttpStatus.BAD_REQUEST, "课程下发参数不能为空");
         }
         EduClassPO eduClassPO = requireTeacherClass(req.getClassId());
-        requireTeacherCourse(req.getCourseId());
+        EduCoursePO eduCoursePO = requireTeacherCourse(req.getCourseId());
         if (eduCourseClassRepository.selectCourseClass(req.getCourseId(), req.getClassId()) != null) {
             throw new UserErrorException(HttpStatus.CONFLICT, "课程已下发到该班级");
         }
@@ -290,7 +291,15 @@ public class TeacherClassServiceImpl implements TeacherClassService {
                 .deadline(parseDeadline(req.getDeadline()))
                 .build();
         eduCourseClassRepository.insertCourseClass(courseClassPO);
-        return toTeacherClassCourseDTO(courseClassPO);
+        return CourseAssignmentDTO.builder()
+                .id(courseClassPO.getId())
+                .courseId(eduCoursePO.getId())
+                .courseName(eduCoursePO.getCourseName())
+                .classId(eduClassPO.getId())
+                .className(eduClassPO.getClassName())
+                .publishTime(formatDateTime(courseClassPO.getPublishTime()))
+                .deadline(formatDateTime(courseClassPO.getDeadline()))
+                .build();
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.edu.service;
 
 import com.edu.common.PageQuery;
 import com.edu.common.PageResult;
+import com.edu.pojo.dto.CourseAssignmentDTO;
 import com.edu.pojo.dto.CourseAssignmentReq;
 import com.edu.pojo.dto.CourseDeadlineDTO;
 import com.edu.pojo.dto.TeacherClassCodeDTO;
@@ -42,7 +43,7 @@ public interface TeacherClassService {
 
     PageResult<TeacherClassCourseDTO> listAssignedCourses(Long classId, Integer pageNum, Integer pageSize, String keyword);
 
-    TeacherClassCourseDTO assignCourse(CourseAssignmentReq req);
+    CourseAssignmentDTO assignCourse(CourseAssignmentReq req);
 
     CourseDeadlineDTO updateCourseDeadline(Long classId, Long courseId, String deadline);
 

@@ -1,8 +1,8 @@
 package com.edu.controller;
 
 import com.edu.common.Result;
+import com.edu.pojo.dto.CourseAssignmentDTO;
 import com.edu.pojo.dto.CourseAssignmentReq;
-import com.edu.pojo.dto.TeacherClassCourseDTO;
 import com.edu.service.TeacherClassService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,8 +24,8 @@ public class TeacherCourseAssignmentController {
 
     @Operation(summary = "下发课程到班级")
     @PostMapping
-    public Result<TeacherClassCourseDTO> assignCourse(@RequestBody CourseAssignmentReq req) {
-        TeacherClassCourseDTO assignment = teacherClassService.assignCourse(req);
+    public Result<CourseAssignmentDTO> assignCourse(@RequestBody CourseAssignmentReq req) {
+        CourseAssignmentDTO assignment = teacherClassService.assignCourse(req);
         return Result.setResult(HttpStatus.OK, "下发成功", assignment);
     }
 }
