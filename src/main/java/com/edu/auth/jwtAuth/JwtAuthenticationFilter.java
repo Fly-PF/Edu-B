@@ -1,9 +1,13 @@
 package com.edu.auth.jwtAuth;
 
 import com.edu.common.properties.JwtProperties;
+import com.edu.pojo.po.SysRolePO;
 import com.edu.pojo.po.SysUserPO;
 import com.edu.pojo.dto.UserInfoDTO;
+import com.edu.pojo.po.SysUserRolePO;
+import com.edu.repository.SysRoleRepository;
 import com.edu.repository.SysUserRepository;
+import com.edu.repository.SysUserRoleRepository;
 import com.edu.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -36,6 +40,8 @@ import java.util.List;
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final SysUserRepository sysUserRepository;
+    private final SysUserRoleRepository sysUserRoleRepository;
+    private final SysRoleRepository sysRoleRepository;
     private final JwtUtil jwtUtil;
     private final JwtProperties jwtProperties;
 
@@ -98,14 +104,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        SysUserRolePO sysUserRolePO = sysUserRoleRepository.selectUserRoleByUserId(sysUserPO.getId());
+        SysRolePO sysRolePO = sysRoleRepository.selectRoleById(sysUserRolePO.getRoleId());
+
         UserInfoDTO userInfoDTO = UserInfoDTO.builder()
                 .userId(sysUserPO.getId())
                 .username(sysUserPO.getUsername())
-                .email(sysUserPO.getEmail())
                 .realName(sysUserPO.getRealName())
+                .roleCode(sysRolePO.getRoleCode())
+                .roleName(sysRolePO.getRoleName())
                 .build();
 
-        GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_USER");
+        GrantedAuthority authority = new SimpleGrantedAuthority(sysRolePO.getRoleCode());
         Collection<GrantedAuthority> authorities = List.of(authority);
 
         JwtAuthentication authentication = new JwtAuthentication(userInfoDTO, authorities);

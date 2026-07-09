@@ -3,8 +3,12 @@ package com.edu.auth.mailLogin;
 import com.edu.auth.entity.MailLoginReq;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.auth.usernameLogin.UsernameAuthentication;
+import com.edu.pojo.po.SysRolePO;
 import com.edu.pojo.po.SysUserPO;
+import com.edu.pojo.po.SysUserRolePO;
+import com.edu.repository.SysRoleRepository;
 import com.edu.repository.SysUserRepository;
+import com.edu.repository.SysUserRoleRepository;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -17,6 +21,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class MailAuthenticationProvider implements AuthenticationProvider {
     private final SysUserRepository sysUserRepository;
+    private final SysUserRoleRepository sysUserRoleRepository;
+    private final SysRoleRepository sysRoleRepository;
 
     @Override
     public @Nullable Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -43,11 +49,15 @@ public class MailAuthenticationProvider implements AuthenticationProvider {
             throw new BadCredentialsException("验证码错误！");
         }
 
+        SysUserRolePO sysUserRolePO = sysUserRoleRepository.selectUserRoleByUserId(sysUserPO.getId());
+        SysRolePO sysRolePO = sysRoleRepository.selectRoleById(sysUserRolePO.getRoleId());
+
         UserInfoDTO userInfoDTO = UserInfoDTO.builder()
                 .userId(sysUserPO.getId())
                 .username(sysUserPO.getUsername())
                 .realName(sysUserPO.getRealName())
-                .email(sysUserPO.getEmail())
+                .roleCode(sysRolePO.getRoleCode())
+                .roleName(sysRolePO.getRoleName())
                 .build();
 
         UsernameAuthentication userAuthenticated = new UsernameAuthentication();

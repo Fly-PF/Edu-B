@@ -52,7 +52,9 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userId", userInfoDTO.getUserId());
         extraClaims.put("username", userInfoDTO.getUsername());
-        extraClaims.put("email", userInfoDTO.getEmail());
+        extraClaims.put("realName", userInfoDTO.getRealName());
+        extraClaims.put("roleName", userInfoDTO.getRoleName());
+        extraClaims.put("roleCode", userInfoDTO.getRoleCode());
 
         String jwt = jwtUtil.createJWT(extraClaims);
         String token = "Bearer %s".formatted(jwt);
@@ -60,11 +62,13 @@ public class LoginSuccessHandler implements AuthenticationSuccessHandler {
         LoginRes loginRes = LoginRes.builder()
                 .userId(userInfoDTO.getUserId())
                 .username(userInfoDTO.getUsername())
-                .email(userInfoDTO.getEmail())
+                .roleCode(userInfoDTO.getRoleCode())
+                .realName(userInfoDTO.getRealName())
+                .roleName(userInfoDTO.getRoleName())
                 .token(token)
                 .build();
 
-        Result<?> result = Result.setResult(HttpStatus.OK, "success", loginRes);
+        Result<?> result = Result.setResult(HttpStatus.OK, "登录成功！", loginRes);
 
         response.setContentType("application/json;charset=UTF-8");
         response.setStatus(HttpServletResponse.SC_OK);

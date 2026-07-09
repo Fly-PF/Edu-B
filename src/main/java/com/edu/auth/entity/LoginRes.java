@@ -18,6 +18,8 @@ import lombok.NoArgsConstructor;
 public class LoginRes {
     private Long userId;
     private String username;
-    private String email;
     private String token;
+    private String roleCode;
+    private String realName;
+    private String roleName;
 }
