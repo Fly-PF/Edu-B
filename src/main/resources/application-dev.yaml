@@ -11,6 +11,7 @@ edu:
     port: 6379
     password: root
     database: 6
+  # jwt、mail 不用改动，本地自测完全通用
   jwt:
     secret-key: abcdefghijklmnopqabcdefghijklmnopq
     expire-time: 7200000
