@@ -1,11 +1,11 @@
 package com.edu.controller;
 
 import com.edu.common.Result;
+import com.edu.common.PageResult;
 import com.edu.pojo.dto.personnel.CreatePersonnelRequest;
 import com.edu.pojo.dto.personnel.UpdatePersonnelRequest;
 import com.edu.pojo.dto.personnel.UpdatePersonnelStatusRequest;
 import com.edu.pojo.vo.personnel.CreatePersonnelResultVO;
-import com.edu.pojo.vo.personnel.PageResultVO;
 import com.edu.pojo.vo.personnel.PersonnelVO;
 import com.edu.service.PersonnelService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,8 +38,8 @@ public class PersonnelController {
 
     @Operation(summary = "分页查询学生人员")
     @GetMapping("/students")
-    public Result<PageResultVO<PersonnelVO>> pageStudents(@RequestParam(defaultValue = "1") Long pageNum,
-                                                          @RequestParam(defaultValue = "10") Long pageSize,
+    public Result<PageResult<PersonnelVO>> pageStudents(@RequestParam(required = false) Integer pageNum,
+                                                          @RequestParam(required = false) Integer pageSize,
                                                           @RequestParam(required = false) String keyword,
                                                           @RequestParam(required = false) Integer status) {
         return page(STUDENT, pageNum, pageSize, keyword, status);
@@ -77,8 +77,8 @@ public class PersonnelController {
 
     @Operation(summary = "分页查询教师人员")
     @GetMapping("/teachers")
-    public Result<PageResultVO<PersonnelVO>> pageTeachers(@RequestParam(defaultValue = "1") Long pageNum,
-                                                          @RequestParam(defaultValue = "10") Long pageSize,
+    public Result<PageResult<PersonnelVO>> pageTeachers(@RequestParam(required = false) Integer pageNum,
+                                                          @RequestParam(required = false) Integer pageSize,
                                                           @RequestParam(required = false) String keyword,
                                                           @RequestParam(required = false) Integer status) {
         return page(TEACHER, pageNum, pageSize, keyword, status);
@@ -116,8 +116,8 @@ public class PersonnelController {
 
     @Operation(summary = "分页查询管理人员")
     @GetMapping("/managers")
-    public Result<PageResultVO<PersonnelVO>> pageManagers(@RequestParam(defaultValue = "1") Long pageNum,
-                                                          @RequestParam(defaultValue = "10") Long pageSize,
+    public Result<PageResult<PersonnelVO>> pageManagers(@RequestParam(required = false) Integer pageNum,
+                                                          @RequestParam(required = false) Integer pageSize,
                                                           @RequestParam(required = false) String keyword,
                                                           @RequestParam(required = false) Integer status) {
         return page(MANAGER, pageNum, pageSize, keyword, status);
@@ -153,7 +153,7 @@ public class PersonnelController {
         return delete(MANAGER, id);
     }
 
-    private Result<PageResultVO<PersonnelVO>> page(Integer userType, Long pageNum, Long pageSize, String keyword, Integer status) {
+    private Result<PageResult<PersonnelVO>> page(Integer userType, Integer pageNum, Integer pageSize, String keyword, Integer status) {
         return Result.setResult(HttpStatus.OK, "查询成功", personnelService.page(userType, pageNum, pageSize, keyword, status));
     }
 

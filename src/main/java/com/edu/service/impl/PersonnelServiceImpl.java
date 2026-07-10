@@ -1,6 +1,8 @@
 package com.edu.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.edu.common.PageQuery;
+import com.edu.common.PageResult;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.dto.personnel.CreatePersonnelRequest;
@@ -9,7 +11,6 @@ import com.edu.pojo.po.SysRolePO;
 import com.edu.pojo.po.SysUserPO;
 import com.edu.pojo.po.SysUserRolePO;
 import com.edu.pojo.vo.personnel.CreatePersonnelResultVO;
-import com.edu.pojo.vo.personnel.PageResultVO;
 import com.edu.pojo.vo.personnel.PersonnelVO;
 import com.edu.repository.SysRoleRepository;
 import com.edu.repository.SysUserRoleRepository;
@@ -29,7 +30,7 @@ import org.springframework.util.StringUtils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +43,6 @@ public class PersonnelServiceImpl implements PersonnelService {
     private static final String ROLE_CODE_MANAGER = "ADMIN";
     private static final String CREATE_SUCCESS_MESSAGE = "新增成功";
     private static final String RESTORE_SUCCESS_MESSAGE = "账号存在，但之前已逻辑删除，现在已经覆盖恢复";
-    private static final Set<Long> ALLOWED_PAGE_SIZES = Set.of(10L, 20L, 50L);
     private static final TypeReference<Map<String, Object>> EXT_JSON_TYPE = new TypeReference<>() {
     };
 
@@ -53,19 +53,19 @@ public class PersonnelServiceImpl implements PersonnelService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public PageResultVO<PersonnelVO> page(Integer userType, Long pageNum, Long pageSize, String keyword, Integer status) {
+    public PageResult<PersonnelVO> page(Integer userType, Integer pageNum, Integer pageSize, String keyword, Integer status) {
         validateUserType(userType);
-        long currentPage = pageNum == null ? 1L : pageNum;
-        long currentSize = pageSize == null ? 10L : pageSize;
-        validatePage(currentPage, currentSize, status);
+        validatePageStatus(status);
+        PageQuery pageQuery = PageQuery.of(pageNum, pageSize);
 
-        IPage<SysUserPO> page = sysUserRepository.selectPersonnelPage(currentPage, currentSize, keyword, status, userType);
-        return PageResultVO.<PersonnelVO>builder()
-                .total(page.getTotal())
-                .pageNum(currentPage)
-                .pageSize(currentSize)
-                .records(page.getRecords().stream().map(this::toVO).toList())
-                .build();
+        IPage<SysUserPO> page = sysUserRepository.selectPersonnelPage(
+                pageQuery.getPageNum(),
+                pageQuery.getPageSize(),
+                keyword,
+                status,
+                userType
+        );
+        return PageResult.of(page.getTotal(), pageQuery, page.getRecords().stream().map(this::toVO).toList());
     }
 
     @Override
@@ -148,8 +148,8 @@ public class PersonnelServiceImpl implements PersonnelService {
         sysUserRepository.updateUserById(user);
     }
 
-    private void validatePage(long pageNum, long pageSize, Integer status) {
-        if (pageNum < 1 || !ALLOWED_PAGE_SIZES.contains(pageSize) || (status != null && status != 0 && status != 1)) {
+    private void validatePageStatus(Integer status) {
+        if (status != null && status != 0 && status != 1) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "请求参数错误");
         }
     }
