@@ -52,11 +52,15 @@ public class UsernameAuthenticationProvider implements AuthenticationProvider {
         }
 
         SysUserPO sysUserPO = sysUserRepository.selectUserByUsername(usernameLoginReq.getUsername());
-        if(sysUserPO == null){
+        if(sysUserPO == null || sysUserPO.getDeleted() == 1){
             throw new BadCredentialsException("用户不存在！");
         }
         if(!passwordEncoder.matches(usernameLoginReq.getPassword(), sysUserPO.getPassword())){
             throw new BadCredentialsException("密码错误！");
+        }
+
+        if(sysUserPO.getStatus() == 0){
+            throw new BadCredentialsException("账户已被禁用，请联系管理员！");
         }
 
         SysUserRolePO sysUserRolePO = sysUserRoleRepository.selectUserRoleByUserId(sysUserPO.getId());
