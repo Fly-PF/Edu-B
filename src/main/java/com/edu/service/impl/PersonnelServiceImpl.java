@@ -3,6 +3,7 @@ package com.edu.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.edu.common.PageQuery;
 import com.edu.common.PageResult;
+import com.edu.common.properties.MinioProperties;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.dto.personnel.CreatePersonnelRequest;
@@ -16,6 +17,7 @@ import com.edu.repository.SysRoleRepository;
 import com.edu.repository.SysUserRoleRepository;
 import com.edu.repository.SysUserRepository;
 import com.edu.service.PersonnelService;
+import com.edu.util.AvatarUrlBuilder;
 import com.edu.util.SecurityUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -51,6 +53,8 @@ public class PersonnelServiceImpl implements PersonnelService {
     private final SysUserRoleRepository sysUserRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
+    private final MinioProperties minioProperties;
+    private final AvatarUrlBuilder avatarUrlBuilder;
 
     @Override
     public PageResult<PersonnelVO> page(Integer userType, Integer pageNum, Integer pageSize, String keyword, Integer status) {
@@ -219,7 +223,7 @@ public class PersonnelServiceImpl implements PersonnelService {
                 .realName(request.getRealName())
                 .phone(request.getPhone())
                 .email(request.getEmail())
-                .avatar(request.getAvatar())
+                .avatar(resolveCreateAvatar(request.getAvatar()))
                 .userType(userType)
                 .grade(request.getGrade())
                 .school(request.getSchool())
@@ -230,6 +234,17 @@ public class PersonnelServiceImpl implements PersonnelService {
                 .build();
     }
 
+    private String resolveCreateAvatar(String avatar) {
+        if (StringUtils.hasText(avatar)) {
+            return avatar;
+        }
+        String defaultAvatar = minioProperties.getDefaultAvatar();
+        if (!StringUtils.hasText(defaultAvatar)) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "默认头像未配置");
+        }
+        return defaultAvatar;
+    }
+
     private PersonnelVO toVO(SysUserPO user) {
         return PersonnelVO.builder()
                 .id(user.getId())
@@ -237,7 +252,7 @@ public class PersonnelServiceImpl implements PersonnelService {
                 .realName(user.getRealName())
                 .phone(user.getPhone())
                 .email(user.getEmail())
-                .avatar(user.getAvatar())
+                .avatar(avatarUrlBuilder.build(user.getAvatar()))
                 .userType(user.getUserType())
                 .userTypeName(userTypeName(user.getUserType()))
                 .grade(user.getGrade())
