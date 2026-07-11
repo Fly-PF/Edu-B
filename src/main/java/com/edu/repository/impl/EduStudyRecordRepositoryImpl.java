@@ -35,4 +35,14 @@ public class EduStudyRecordRepositoryImpl implements EduStudyRecordRepository {
                 .eq(EduStudyRecordPO::getCourseId, courseId);
         return eduStudyRecordMapper.selectList(queryWrapper);
     }
+
+    @Override
+    public int insertStudyRecord(EduStudyRecordPO record) {
+        return eduStudyRecordMapper.insert(record);
+    }
+
+    @Override
+    public int updateStudyRecord(EduStudyRecordPO record) {
+        return eduStudyRecordMapper.updateById(record);
+    }
 }

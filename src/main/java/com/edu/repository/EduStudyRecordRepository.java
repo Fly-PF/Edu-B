@@ -10,4 +10,8 @@ public interface EduStudyRecordRepository {
     List<EduStudyRecordPO> selectRecordsByStudentId(Long studentId);
 
     List<EduStudyRecordPO> selectRecordsByCourseId(Long courseId);
+
+    int insertStudyRecord(EduStudyRecordPO record);
+
+    int updateStudyRecord(EduStudyRecordPO record);
 }
