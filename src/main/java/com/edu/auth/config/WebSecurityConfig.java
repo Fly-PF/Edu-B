@@ -1,8 +1,8 @@
 package com.edu.auth.config;
 
-import com.edu.auth.jwtAuth.JwtAuthenticationFilter;
 import com.edu.auth.handler.AuthAccessDeniedHandler;
 import com.edu.auth.handler.AuthenticationHandler;
+import com.edu.auth.jwtAuth.JwtAuthenticationFilter;
 import com.edu.auth.mailLogin.MailAuthenticationFilter;
 import com.edu.auth.usernameLogin.UsernameAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -21,25 +21,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
-
-/**
- * 描述
- *
- * @author Fly
- * @since 2026-03-17 12:20
- */
 @Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class WebSecurityConfig {
-
     private final AuthenticationHandler authenticationHandler;
     private final AuthAccessDeniedHandler accessDeniedHandler;
-
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private final UsernameAuthenticationFilter usernameAuthenticationFilter;
     private final MailAuthenticationFilter mailAuthenticationFilter;
 
@@ -58,7 +48,6 @@ public class WebSecurityConfig {
         return source;
     }
 
-
     private void commonHttpSetting(HttpSecurity http) {
         http.formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -70,18 +59,17 @@ public class WebSecurityConfig {
 
         http.authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(
-                        "/doc.html",          // Knife4j主页面
-                        "/v3/api-docs/**",    // OpenAPI3接口文档数据
-                        "/webjars/**",        // Knife4j静态资源
-                        "/swagger-resources/**"  // 文档资源信息
-
+                        "/doc.html",
+                        "/v3/api-docs/**",
+                        "/webjars/**",
+                        "/swagger-resources/**",
+                        "/api/user/avatar/image"
                 ).permitAll()
         );
 
         http.exceptionHandling(ex -> ex
-                .authenticationEntryPoint(authenticationHandler) // 未登录处理
-                .accessDeniedHandler(accessDeniedHandler) // 权限不足处理
-
+                .authenticationEntryPoint(authenticationHandler)
+                .accessDeniedHandler(accessDeniedHandler)
         );
 
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()));

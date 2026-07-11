@@ -11,6 +11,13 @@ edu:
     port: 6379
     password: root
     database: 6
+  minio:
+    endpoint: http://192.168.40.128:9000
+    access_key: root
+    secret_key: rootroot
+    bucker_name: edu
+    public_base_url: http://localhost:8080
+    default_avatar: avatar/default_avatar.png
   # jwt、mail 不用改动，本地自测完全通用
   jwt:
     secret-key: abcdefghijklmnopqabcdefghijklmnopq
@@ -21,3 +28,4 @@ edu:
     captcha:
       length: 6
       expire-minutes: 5
+

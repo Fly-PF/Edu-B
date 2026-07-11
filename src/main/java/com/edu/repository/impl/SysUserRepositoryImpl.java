@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 
@@ -79,6 +80,63 @@ public class SysUserRepositoryImpl implements SysUserRepository {
     @Override
     public int updateUserById(SysUserPO user) {
         return sysUserMapper.updateById(user);
+    }
+
+    @Override
+    public int updatePasswordById(Long userId, String password) {
+        UpdateWrapper<SysUserPO> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", userId)
+                .eq("deleted", 0)
+                .set("password", password)
+                .set("update_by", userId);
+        return sysUserMapper.update(updateWrapper);
+    }
+
+    @Override
+    public int updateAvatarById(Long userId, String avatar) {
+        UpdateWrapper<SysUserPO> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", userId)
+                .eq("deleted", 0)
+                .set("avatar", avatar)
+                .set("update_by", userId);
+        return sysUserMapper.update(updateWrapper);
+    }
+
+    @Override
+    public int updateLastLoginInfo(Long userId, String lastLoginIp, LocalDateTime lastLoginTime) {
+        UpdateWrapper<SysUserPO> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", userId)
+                .eq("deleted", 0)
+                .set("last_login_ip", lastLoginIp)
+                .set("last_login_time", lastLoginTime);
+        return sysUserMapper.update(updateWrapper);
+    }
+
+    @Override
+    public int updateProfileFields(Long userId, SysUserPO user, Set<String> fields) {
+        UpdateWrapper<SysUserPO> updateWrapper = new UpdateWrapper<>();
+        updateWrapper.eq("id", userId)
+                .eq("deleted", 0);
+
+        if (fields.contains("realName")) {
+            updateWrapper.set("real_name", user.getRealName());
+        }
+        if (fields.contains("phone")) {
+            updateWrapper.set("phone", user.getPhone());
+        }
+        if (fields.contains("email")) {
+            updateWrapper.set("email", user.getEmail());
+        }
+        if (fields.contains("grade")) {
+            updateWrapper.set("grade", user.getGrade());
+        }
+        if (fields.contains("school")) {
+            updateWrapper.set("school", user.getSchool());
+        }
+        if (user.getUpdateBy() != null) {
+            updateWrapper.set("update_by", user.getUpdateBy());
+        }
+        return sysUserMapper.update(updateWrapper);
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.edu.repository;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.edu.pojo.po.SysUserPO;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 public interface SysUserRepository {
@@ -19,6 +20,14 @@ public interface SysUserRepository {
     int insertUser(SysUserPO user);
 
     int updateUserById(SysUserPO user);
+
+    int updatePasswordById(Long userId, String password);
+
+    int updateAvatarById(Long userId, String avatar);
+
+    int updateLastLoginInfo(Long userId, String lastLoginIp, LocalDateTime lastLoginTime);
+
+    int updateProfileFields(Long userId, SysUserPO user, Set<String> fields);
 
     int updatePersonnelFields(Long userId, SysUserPO user, Set<String> fields);
 
