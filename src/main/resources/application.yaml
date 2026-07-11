@@ -1,8 +1,14 @@
+server:
+  port: 8080
 spring:
   application:
     name: Edu-B
+  servlet:
+    multipart:
+      max-file-size: 1GB
+      max-request-size: 1GB
   profiles:
-    active: dev
+    active: local
   main:
     allow-circular-references: true
   datasource:

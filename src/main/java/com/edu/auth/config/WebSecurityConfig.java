@@ -63,7 +63,8 @@ public class WebSecurityConfig {
                         "/v3/api-docs/**",
                         "/webjars/**",
                         "/swagger-resources/**",
-                        "/api/user/avatar/image"
+                        "/api/user/avatar/image",
+                        "/api/course-files/**"
                 ).permitAll()
         );
 
