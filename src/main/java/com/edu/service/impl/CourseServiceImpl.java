@@ -23,6 +23,7 @@ import com.edu.pojo.vo.course.CourseStudyRecordVO;
 import com.edu.pojo.vo.course.CourseVO;
 import com.edu.pojo.vo.course.ResourceVO;
 import com.edu.repository.CourseModuleRepository;
+import com.edu.repository.EduCourseClassRepository;
 import com.edu.repository.EduStudyRecordRepository;
 import com.edu.repository.SysUserRepository;
 import com.edu.service.CourseResourceStorageService;
@@ -54,6 +55,7 @@ public class CourseServiceImpl implements CourseService {
     private static final String ROLE_TEACHER = "TEACHER";
 
     private final CourseModuleRepository courseRepository;
+    private final EduCourseClassRepository courseClassRepository;
     private final EduStudyRecordRepository studyRecordRepository;
     private final SysUserRepository userRepository;
     private final CourseResourceStorageService storageService;
@@ -277,17 +279,19 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public void deleteDraftCourse(Long courseId) {
+    public void deleteCourse(Long courseId) {
         UserInfoDTO user = requireTeacher();
         EduCoursePO course = requireOwnedCourse(courseId, user);
-        if (!Objects.equals(course.getStatus(), STATUS_DRAFT)) {
+        /*
             throw new BaseException(HttpStatus.BAD_REQUEST, "只能删除草稿课程");
         }
 
+        */
         List<EduChapterPO> chapters = courseRepository.selectChaptersByCourseId(courseId);
         List<Long> chapterIds = chapters.stream().map(EduChapterPO::getId).toList();
         List<EduResourcePO> resources = courseRepository.selectResourcesByChapterIds(chapterIds);
 
+        courseClassRepository.deleteByCourseId(courseId);
         courseRepository.deleteStudyRecordsByChapterIds(chapterIds);
         courseRepository.deleteResourcesByChapterIds(chapterIds);
         courseRepository.deleteChaptersByCourseId(courseId);
@@ -295,6 +299,12 @@ public class CourseServiceImpl implements CourseService {
 
         resources.forEach(resource -> storageService.delete(resource.getResourceUrl()));
         storageService.delete(course.getCover());
+    }
+
+    @Override
+    @Transactional
+    public void deleteDraftCourse(Long courseId) {
+        deleteCourse(courseId);
     }
 
     @Override

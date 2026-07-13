@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -62,6 +63,7 @@ public class TeacherCourseController {
     }
 
     @Operation(summary = "修改课程信息")
+    @PutMapping("/{courseId}")
     @PatchMapping("/{courseId}")
     public Result<CourseVO> updateCourse(
             @PathVariable Long courseId,
@@ -82,7 +84,7 @@ public class TeacherCourseController {
     @Operation(summary = "删除课程草稿")
     @DeleteMapping("/{courseId}")
     public Result<Void> deleteDraftCourse(@PathVariable Long courseId) {
-        courseService.deleteDraftCourse(courseId);
+        courseService.deleteCourse(courseId);
         return Result.setResult(HttpStatus.OK, "课程草稿已删除");
     }
 

@@ -16,5 +16,7 @@ public interface EduCourseClassRepository {
 
     int updateDeadline(Long courseId, Long classId, LocalDateTime deadline);
 
+    int deleteByCourseId(Long courseId);
+
     int deleteCourseClass(Long courseId, Long classId);
 }

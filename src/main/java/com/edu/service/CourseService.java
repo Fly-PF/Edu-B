@@ -39,6 +39,8 @@ public interface CourseService {
 
     CourseVO uploadCourseCover(Long courseId, MultipartFile file);
 
+    void deleteCourse(Long courseId);
+
     void deleteDraftCourse(Long courseId);
 
     CourseVO publishCourse(Long courseId);
