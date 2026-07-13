@@ -64,7 +64,6 @@ public class TeacherCourseController {
 
     @Operation(summary = "修改课程信息")
     @PutMapping("/{courseId}")
-    @PatchMapping("/{courseId}")
     public Result<CourseVO> updateCourse(
             @PathVariable Long courseId,
             @Valid @RequestBody CourseUpdateRequest request
