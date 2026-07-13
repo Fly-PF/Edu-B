@@ -44,6 +44,11 @@ public class EduClassStudentRepositoryImpl implements EduClassStudentRepository 
     }
 
     @Override
+    public int insertClassStudent(EduClassStudentPO classStudent) {
+        return eduClassStudentMapper.insert(classStudent);
+    }
+
+    @Override
     public int deleteClassStudent(Long classId, Long studentId) {
         LambdaQueryWrapper<EduClassStudentPO> queryWrapper = new LambdaQueryWrapper<EduClassStudentPO>()
                 .eq(EduClassStudentPO::getClassId, classId)
