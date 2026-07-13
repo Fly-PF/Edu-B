@@ -13,9 +13,12 @@ public class CourseVO {
     private Long teacherId;
     private String teacherName;
     private String title;
+    private String courseName;
     private String description;
+    private String intro;
     private List<String> tags;
     private String coverUrl;
+    private String cover;
     private String grade;
     private Integer difficulty;
     private Integer courseType;
@@ -24,6 +27,7 @@ public class CourseVO {
     private Long resourceCount;
     private String status;
     private Boolean publicCourse;
+    private Integer isPublic;
     private LocalDateTime createdTime;
     private LocalDateTime updatedTime;
 }

@@ -23,9 +23,13 @@ public interface CourseService {
 
     List<ChapterVO> listCourseChapters(Long courseId);
 
+    List<ResourceVO> listChapterResources(Long chapterId);
+
     List<CourseStudyRecordVO> listStudyRecords(Long courseId);
 
     CourseStudyRecordVO saveStudyRecord(Long courseId, CourseStudyRecordRequest request);
+
+    CourseStudyRecordVO saveStudyRecord(CourseStudyRecordRequest request);
 
     List<CourseVO> listTeacherCourses(String status, String keyword);
 

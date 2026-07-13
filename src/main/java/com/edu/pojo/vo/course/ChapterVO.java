@@ -12,8 +12,12 @@ public class ChapterVO {
     private Long id;
     private Long courseId;
     private String title;
+    private String chapterName;
     private Integer sortOrder;
+    private Integer sort;
     private Integer duration;
+    private Integer progress;
+    private Integer finishStatus;
     private LocalDateTime createdTime;
     private List<ResourceVO> resources;
 }
