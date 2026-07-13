@@ -89,6 +89,25 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    public List<ResourceVO> listChapterResources(Long chapterId) {
+        UserInfoDTO user = currentUser();
+        if (chapterId == null) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "章节ID不能为空");
+        }
+        EduChapterPO chapter = courseRepository.selectChapterById(chapterId);
+        if (chapter == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "章节不存在");
+        }
+        EduCoursePO course = requireCourse(chapter.getCourseId());
+        if (!canViewCourse(course, user)) {
+            throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该章节资源");
+        }
+        return courseRepository.selectResourcesByChapterId(chapterId).stream()
+                .map(this::toResourceVO)
+                .toList();
+    }
+
+    @Override
     public List<CourseStudyRecordVO> listStudyRecords(Long courseId) {
         UserInfoDTO user = currentUser();
         EduCoursePO course = requireCourse(courseId);
@@ -151,6 +170,15 @@ public class CourseServiceImpl implements CourseService {
             studyRecordRepository.updateStudyRecord(record);
         }
         return toStudyRecordVO(record);
+    }
+
+    @Override
+    @Transactional
+    public CourseStudyRecordVO saveStudyRecord(CourseStudyRecordRequest request) {
+        if (request == null || request.getCourseId() == null) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程ID不能为空");
+        }
+        return saveStudyRecord(request.getCourseId(), request);
     }
 
     @Override
@@ -519,8 +547,12 @@ public class CourseServiceImpl implements CourseService {
                 .id(chapter.getId())
                 .courseId(chapter.getCourseId())
                 .title(chapter.getChapterName())
+                .chapterName(chapter.getChapterName())
                 .sortOrder(defaultNumber(chapter.getSort()))
+                .sort(defaultNumber(chapter.getSort()))
                 .duration(defaultNumber(chapter.getDuration()))
+                .progress(0)
+                .finishStatus(0)
                 .createdTime(chapter.getCreateTime())
                 .resources(resources.stream().map(this::toResourceVO).toList())
                 .build();
@@ -531,8 +563,11 @@ public class CourseServiceImpl implements CourseService {
                 .id(resource.getId())
                 .chapterId(resource.getChapterId())
                 .name(resource.getResourceName())
+                .resourceName(resource.getResourceName())
                 .type(resource.getResourceType())
+                .resourceType(resource.getResourceType())
                 .url(storageService.createReadUrl(resource.getResourceUrl()))
+                .resourceUrl(storageService.createReadUrl(resource.getResourceUrl()))
                 .storedUrl(resource.getResourceUrl())
                 .fileSize(resource.getFileSize())
                 .duration(defaultNumber(resource.getDuration()))
@@ -567,9 +602,12 @@ public class CourseServiceImpl implements CourseService {
                 .teacherId(course.getTeacherId())
                 .teacherName(teacher == null ? "" : teacher.getRealName())
                 .title(course.getCourseName())
+                .courseName(course.getCourseName())
                 .description(course.getIntro())
+                .intro(course.getIntro())
                 .tags(readTags(course.getExtJson()))
                 .coverUrl(storageService.createReadUrl(course.getCover()))
+                .cover(storageService.createReadUrl(course.getCover()))
                 .grade(course.getGrade())
                 .difficulty(course.getDifficulty())
                 .courseType(course.getCourseType())
@@ -578,6 +616,7 @@ public class CourseServiceImpl implements CourseService {
                 .resourceCount(resourceCount)
                 .status(statusText(course.getStatus()))
                 .publicCourse(Objects.equals(course.getPublicFlag(), PUBLIC_COURSE))
+                .isPublic(course.getPublicFlag())
                 .createdTime(course.getCreateTime())
                 .updatedTime(course.getUpdateTime())
                 .build();
