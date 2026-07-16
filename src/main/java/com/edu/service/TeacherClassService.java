@@ -5,6 +5,7 @@ import com.edu.common.PageResult;
 import com.edu.pojo.dto.CourseAssignmentDTO;
 import com.edu.pojo.dto.CourseAssignmentReq;
 import com.edu.pojo.dto.CourseDeadlineDTO;
+import com.edu.pojo.dto.TeacherAssignableCourseDTO;
 import com.edu.pojo.dto.TeacherClassCodeDTO;
 import com.edu.pojo.dto.TeacherClassCourseDTO;
 import com.edu.pojo.dto.TeacherClassDetailDTO;
@@ -19,6 +20,8 @@ import com.edu.pojo.dto.TeacherClassListDTO;
 import com.edu.pojo.po.EduClassPO;
 import com.edu.pojo.po.EduCourseClassPO;
 import com.edu.pojo.po.EduCoursePO;
+
+import java.util.List;
 
 public interface TeacherClassService {
     Long getCurrentTeacherId();
@@ -56,6 +59,8 @@ public interface TeacherClassService {
     void removeClassStudent(Long classId, Long studentId);
 
     PageResult<TeacherClassCourseDTO> listAssignedCourses(Long classId, Integer pageNum, Integer pageSize, String keyword);
+
+    List<TeacherAssignableCourseDTO> listAssignableCourses(Long classId, String keyword);
 
     CourseAssignmentDTO assignCourse(CourseAssignmentReq req);
 

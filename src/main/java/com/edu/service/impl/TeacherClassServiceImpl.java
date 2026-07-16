@@ -6,6 +6,7 @@ import com.edu.exception.UserErrorException;
 import com.edu.pojo.dto.CourseAssignmentDTO;
 import com.edu.pojo.dto.CourseAssignmentReq;
 import com.edu.pojo.dto.CourseDeadlineDTO;
+import com.edu.pojo.dto.TeacherAssignableCourseDTO;
 import com.edu.pojo.dto.TeacherClassCodeDTO;
 import com.edu.pojo.dto.TeacherClassCourseDTO;
 import com.edu.pojo.dto.TeacherClassDetailDTO;
@@ -447,6 +448,21 @@ public class TeacherClassServiceImpl implements TeacherClassService {
     }
 
     @Override
+    public List<TeacherAssignableCourseDTO> listAssignableCourses(Long classId, String keyword) {
+        EduClassPO eduClassPO = requireTeacherClass(classId);
+        Set<Long> assignedCourseIds = eduCourseClassRepository.selectByClassId(classId)
+                .stream()
+                .map(EduCourseClassPO::getCourseId)
+                .collect(Collectors.toSet());
+
+        return eduCourseRepository.selectAssignableTeacherCourses(eduClassPO.getTeacherId(), keyword)
+                .stream()
+                .filter(course -> !assignedCourseIds.contains(course.getId()))
+                .map(this::toTeacherAssignableCourseDTO)
+                .toList();
+    }
+
+    @Override
     public CourseAssignmentDTO assignCourse(CourseAssignmentReq req) {
         if (req == null) {
             throw new UserErrorException(HttpStatus.BAD_REQUEST, "课程下发参数不能为空");
@@ -823,6 +839,20 @@ public class TeacherClassServiceImpl implements TeacherClassService {
                 .totalChapter(course.getTotalChapter())
                 .publishTime(formatDateTime(courseClassPO.getPublishTime()))
                 .deadline(formatDateTime(courseClassPO.getDeadline()))
+                .build();
+    }
+
+    private TeacherAssignableCourseDTO toTeacherAssignableCourseDTO(EduCoursePO course) {
+        return TeacherAssignableCourseDTO.builder()
+                .courseId(course.getId())
+                .courseName(course.getCourseName())
+                .cover(course.getCover())
+                .grade(course.getGrade())
+                .difficulty(course.getDifficulty())
+                .courseType(course.getCourseType())
+                .teacherId(course.getTeacherId())
+                .isPublic(course.getPublicFlag())
+                .status(course.getStatus())
                 .build();
     }
 

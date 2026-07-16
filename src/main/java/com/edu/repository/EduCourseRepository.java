@@ -9,5 +9,7 @@ public interface EduCourseRepository {
 
     List<EduCoursePO> selectCoursesByTeacherId(Long teacherId);
 
+    List<EduCoursePO> selectAssignableTeacherCourses(Long teacherId, String keyword);
+
     List<EduCoursePO> selectPublicCourses();
 }

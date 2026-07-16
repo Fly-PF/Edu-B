@@ -209,14 +209,14 @@ public class CourseServiceImpl implements CourseService {
                 .intro(request.getDescription())
                 .totalDuration(0)
                 .totalChapter(0)
-                .publicFlag(0)
+                .publicFlag(normalizePublicFlag(request.getIsPublic()))
                 .status(STATUS_DRAFT)
                 .createBy(user.getUserId())
                 .updateBy(user.getUserId())
                 .createTime(now)
                 .updateTime(now)
                 .deleted(0)
-                .extJson(writeTags("{}", request.getTags()))
+                .extJson("{}")
                 .build();
         courseRepository.insertCourse(course);
         return toCourseVO(course, user);
@@ -236,11 +236,11 @@ public class CourseServiceImpl implements CourseService {
         if (request.getDescription() != null) {
             course.setIntro(request.getDescription());
         }
-        if (request.getTags() != null) {
-            course.setExtJson(writeTags(course.getExtJson(), request.getTags()));
-        }
         if (request.getCoverUrl() != null) {
             course.setCover(request.getCoverUrl());
+        }
+        if (request.getIsPublic() != null) {
+            course.setPublicFlag(normalizePublicFlag(request.getIsPublic()));
         }
         if (request.getGrade() != null) {
             if (!StringUtils.hasText(request.getGrade())) {
@@ -820,6 +820,16 @@ public class CourseServiceImpl implements CourseService {
 
     private int clampProgress(Integer value) {
         return value == null ? 0 : Math.max(0, Math.min(100, value));
+    }
+
+    private int normalizePublicFlag(Integer value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value != 0 && value != 1) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程公开状态不正确");
+        }
+        return value;
     }
 
     private int defaultNumber(Integer value) {

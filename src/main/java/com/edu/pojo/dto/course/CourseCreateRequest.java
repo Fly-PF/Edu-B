@@ -7,8 +7,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.util.List;
-
 @Data
 public class CourseCreateRequest {
     @NotBlank(message = "课程名称不能为空")
@@ -16,8 +14,11 @@ public class CourseCreateRequest {
     private String title;
 
     private String description;
-    private List<String> tags;
     private String coverUrl;
+
+    @Min(value = 0, message = "课程公开状态不正确")
+    @Max(value = 1, message = "课程公开状态不正确")
+    private Integer isPublic;
 
     @NotBlank(message = "适配学段不能为空")
     private String grade;

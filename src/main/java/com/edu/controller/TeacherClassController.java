@@ -3,6 +3,7 @@ package com.edu.controller;
 import com.edu.common.Result;
 import com.edu.common.PageResult;
 import com.edu.pojo.dto.CourseDeadlineDTO;
+import com.edu.pojo.dto.TeacherAssignableCourseDTO;
 import com.edu.pojo.dto.TeacherClassCodeDTO;
 import com.edu.pojo.dto.TeacherClassCourseDTO;
 import com.edu.pojo.dto.TeacherClassDetailDTO;
@@ -32,6 +33,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -149,6 +152,16 @@ public class TeacherClassController {
             @RequestParam(required = false) String keyword
     ) {
         PageResult<TeacherClassCourseDTO> courses = teacherClassService.listAssignedCourses(classId, pageNum, pageSize, keyword);
+        return Result.setResult(HttpStatus.OK, "查询成功", courses);
+    }
+
+    @Operation(summary = "查看班级可下发课程")
+    @GetMapping("/{classId}/assignable-courses")
+    public Result<List<TeacherAssignableCourseDTO>> listAssignableCourses(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String keyword
+    ) {
+        List<TeacherAssignableCourseDTO> courses = teacherClassService.listAssignableCourses(classId, keyword);
         return Result.setResult(HttpStatus.OK, "查询成功", courses);
     }
 

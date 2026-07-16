@@ -9,6 +9,7 @@ import com.edu.pojo.dto.StudentClassCourseDTO;
 import com.edu.pojo.dto.StudentClassDetailDTO;
 import com.edu.pojo.dto.student.StudentJoinClassRequest;
 import com.edu.pojo.dto.student.StudentJoinedClassDTO;
+import com.edu.pojo.dto.student.StudentPublicClassDTO;
 import com.edu.pojo.po.EduClassPO;
 import com.edu.pojo.po.EduClassStudentPO;
 import com.edu.pojo.po.EduChapterPO;
@@ -41,6 +42,7 @@ import java.time.format.DateTimeFormatter;
 public class StudentClassServiceImpl implements StudentClassService {
     private static final String ROLE_STUDENT = "STUDENT";
     private static final int CLASS_STATUS_ACTIVE = 1;
+    private static final int JOIN_TYPE_INVITE = 1;
     private static final int JOIN_TYPE_PUBLIC = 2;
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -106,6 +108,19 @@ public class StudentClassServiceImpl implements StudentClassService {
                 .toList();
     }
 
+    @Override
+    public List<StudentPublicClassDTO> listPublicJoinableClasses(String keyword) {
+        UserInfoDTO user = requireStudent();
+        List<Long> joinedClassIds = classStudentRepository.selectClassesByStudentId(user.getUserId()).stream()
+                .map(EduClassStudentPO::getClassId)
+                .toList();
+
+        return classRepository.selectPublicJoinableClasses(keyword).stream()
+                .filter(clazz -> !joinedClassIds.contains(clazz.getId()))
+                .map(this::buildPublicClassDTO)
+                .toList();
+    }
+
     private EduClassPO resolveJoinTarget(StudentJoinClassRequest request) {
         if (request == null) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "请提供班级邀请码或班级ID");
@@ -134,6 +149,9 @@ public class StudentClassServiceImpl implements StudentClassService {
         if (request.getClassId() != null && !Objects.equals(joinedClass.getJoinType(), JOIN_TYPE_PUBLIC)) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "该班级不支持公开加入，请使用邀请码");
         }
+        if (StringUtils.hasText(request.getClassCode()) && !Objects.equals(joinedClass.getJoinType(), JOIN_TYPE_INVITE)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "该班级不支持邀请码加入，请使用公开班级加入");
+        }
     }
 
     private void refreshStudentCount(Long classId, Long operatorId) {
@@ -159,6 +177,24 @@ public class StudentClassServiceImpl implements StudentClassService {
                 .status(joinedClass.getStatus())
                 .joinTime(joinTime)
         .build();
+    }
+
+    private StudentPublicClassDTO buildPublicClassDTO(EduClassPO publicClass) {
+        SysUserPO teacher = publicClass.getTeacherId() == null ? null : userRepository.selectUserById(publicClass.getTeacherId());
+        Long studentCount = classStudentRepository.countStudentsByClassId(publicClass.getId());
+        int assignedCourseCount = courseClassRepository.selectByClassId(publicClass.getId()).size();
+        return StudentPublicClassDTO.builder()
+                .classId(publicClass.getId())
+                .className(publicClass.getClassName())
+                .teacherId(publicClass.getTeacherId())
+                .teacherName(teacher == null ? "" : teacher.getRealName())
+                .grade(publicClass.getGrade())
+                .school(publicClass.getSchool())
+                .joinType(publicClass.getJoinType())
+                .studentCount(studentCount == null ? 0 : studentCount.intValue())
+                .assignedCourseCount(assignedCourseCount)
+                .status(publicClass.getStatus())
+                .build();
     }
 
     @Override
