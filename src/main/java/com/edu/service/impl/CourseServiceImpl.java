@@ -24,6 +24,7 @@ import com.edu.pojo.vo.course.CourseVO;
 import com.edu.pojo.vo.course.ResourceVO;
 import com.edu.repository.CourseModuleRepository;
 import com.edu.repository.EduCourseClassRepository;
+import com.edu.repository.EduClassStudentRepository;
 import com.edu.repository.EduStudyRecordRepository;
 import com.edu.repository.SysUserRepository;
 import com.edu.service.CourseResourceStorageService;
@@ -56,6 +57,7 @@ public class CourseServiceImpl implements CourseService {
 
     private final CourseModuleRepository courseRepository;
     private final EduCourseClassRepository courseClassRepository;
+    private final EduClassStudentRepository classStudentRepository;
     private final EduStudyRecordRepository studyRecordRepository;
     private final SysUserRepository userRepository;
     private final CourseResourceStorageService storageService;
@@ -687,7 +689,17 @@ public class CourseServiceImpl implements CourseService {
 
     private boolean canViewCourse(EduCoursePO course, UserInfoDTO user) {
         return Objects.equals(course.getTeacherId(), user.getUserId())
-                || isPublishedPublic(course);
+                || isPublishedPublic(course)
+                || hasClassAccess(course, user);
+    }
+
+    private boolean hasClassAccess(EduCoursePO course, UserInfoDTO user) {
+        if (user == null || user.getUserId() == null) return false;
+        List<Long> assignedClassIds = courseClassRepository.selectByCourseId(course.getId()).stream()
+                .map(cp -> cp.getClassId()).toList();
+        if (assignedClassIds.isEmpty()) return false;
+        return classStudentRepository.selectClassesByStudentId(user.getUserId()).stream()
+                .anyMatch(cs -> assignedClassIds.contains(cs.getClassId()));
     }
 
     private boolean isPublishedPublic(EduCoursePO course) {
