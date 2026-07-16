@@ -10,6 +10,10 @@ import com.edu.pojo.dto.TeacherClassInviteCodeDTO;
 import com.edu.pojo.dto.TeacherClassStudentDTO;
 import com.edu.pojo.dto.TeacherCourseStudyRecordDTO;
 import com.edu.pojo.dto.TeacherStudentCourseStudyRecordDTO;
+import com.edu.pojo.dto.CreateClassReq;
+import com.edu.pojo.dto.UpdateClassReq;
+import com.edu.pojo.dto.UpdateClassStatusReq;
+import com.edu.pojo.dto.TeacherClassListDTO;
 import com.edu.pojo.dto.UpdateCourseDeadlineReq;
 import com.edu.pojo.dto.UpdateClassInviteCodeReq;
 import com.edu.service.TeacherClassService;
@@ -36,6 +40,55 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "老师班级详情")
 public class TeacherClassController {
     private final TeacherClassService teacherClassService;
+
+    @Operation(summary = "查看老师创建的班级列表")
+    @GetMapping
+    public Result<PageResult<TeacherClassListDTO>> listTeacherClasses(
+            @RequestParam(required = false) Integer pageNum,
+            @RequestParam(required = false) Integer pageSize,
+            @RequestParam(required = false) String className,
+            @RequestParam(required = false) String grade,
+            @RequestParam(required = false) Integer classStatus
+    ) {
+        PageResult<TeacherClassListDTO> result = teacherClassService.listTeacherClasses(
+                pageNum, pageSize, className, grade, classStatus
+        );
+        return Result.setResult(HttpStatus.OK, "查询成功", result);
+    }
+
+    @Operation(summary = "创建班级")
+    @PostMapping
+    public Result<TeacherClassListDTO> createClass(@RequestBody CreateClassReq req) {
+        TeacherClassListDTO result = teacherClassService.createClass(req);
+        return Result.setResult(HttpStatus.OK, "创建成功", result);
+    }
+
+    @Operation(summary = "修改班级基本信息")
+    @PutMapping("/{classId}")
+    public Result<TeacherClassListDTO> updateClass(
+            @PathVariable Long classId,
+            @RequestBody UpdateClassReq req
+    ) {
+        TeacherClassListDTO result = teacherClassService.updateClass(classId, req);
+        return Result.setResult(HttpStatus.OK, "修改成功", result);
+    }
+
+    @Operation(summary = "归档或恢复班级")
+    @PatchMapping("/{classId}/status")
+    public Result<TeacherClassListDTO> updateClassStatus(
+            @PathVariable Long classId,
+            @RequestBody UpdateClassStatusReq req
+    ) {
+        TeacherClassListDTO result = teacherClassService.updateClassStatus(classId, req);
+        return Result.setResult(HttpStatus.OK, "操作成功", result);
+    }
+
+    @Operation(summary = "删除班级")
+    @DeleteMapping("/{classId}")
+    public Result<?> deleteClass(@PathVariable Long classId) {
+        teacherClassService.deleteClass(classId);
+        return Result.setResult(HttpStatus.OK, "删除成功");
+    }
 
     @Operation(summary = "查看老师端班级详情")
     @GetMapping("/{classId}")

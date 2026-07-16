@@ -12,6 +12,10 @@ import com.edu.pojo.dto.TeacherClassInviteCodeDTO;
 import com.edu.pojo.dto.TeacherClassStudentDTO;
 import com.edu.pojo.dto.TeacherCourseStudyRecordDTO;
 import com.edu.pojo.dto.TeacherStudentCourseStudyRecordDTO;
+import com.edu.pojo.dto.CreateClassReq;
+import com.edu.pojo.dto.UpdateClassReq;
+import com.edu.pojo.dto.UpdateClassStatusReq;
+import com.edu.pojo.dto.TeacherClassListDTO;
 import com.edu.pojo.po.EduClassPO;
 import com.edu.pojo.po.EduCourseClassPO;
 import com.edu.pojo.po.EduCoursePO;
@@ -28,6 +32,16 @@ public interface TeacherClassService {
     EduCourseClassPO requireCourseAssignment(Long classId, Long courseId);
 
     EduCourseClassPO requireTeacherCourseAssignment(Long classId, Long courseId);
+
+    TeacherClassListDTO createClass(CreateClassReq req);
+
+    void deleteClass(Long classId);
+
+    TeacherClassListDTO updateClass(Long classId, UpdateClassReq req);
+
+    TeacherClassListDTO updateClassStatus(Long classId, UpdateClassStatusReq req);
+
+    PageResult<TeacherClassListDTO> listTeacherClasses(Integer pageNum, Integer pageSize, String className, String grade, Integer classStatus);
 
     TeacherClassDetailDTO getTeacherClassDetail(Long classId);
 

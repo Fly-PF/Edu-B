@@ -64,6 +64,9 @@ public class UsernameAuthenticationProvider implements AuthenticationProvider {
         }
 
         SysUserRolePO sysUserRolePO = sysUserRoleRepository.selectUserRoleByUserId(sysUserPO.getId());
+        if (sysUserRolePO == null) {
+            throw new BadCredentialsException("该用户没有分配角色，请联系管理员！");
+        }
         SysRolePO sysRolePO = sysRoleRepository.selectRoleById(sysUserRolePO.getRoleId());
 
         UserInfoDTO userInfoDTO = UserInfoDTO.builder()
