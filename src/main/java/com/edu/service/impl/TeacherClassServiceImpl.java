@@ -13,6 +13,10 @@ import com.edu.pojo.dto.TeacherClassInviteCodeDTO;
 import com.edu.pojo.dto.TeacherClassStudentDTO;
 import com.edu.pojo.dto.TeacherCourseStudyRecordDTO;
 import com.edu.pojo.dto.TeacherStudentCourseStudyRecordDTO;
+import com.edu.pojo.dto.CreateClassReq;
+import com.edu.pojo.dto.UpdateClassReq;
+import com.edu.pojo.dto.UpdateClassStatusReq;
+import com.edu.pojo.dto.TeacherClassListDTO;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.po.EduChapterPO;
 import com.edu.pojo.po.EduClassPO;
@@ -141,6 +145,175 @@ public class TeacherClassServiceImpl implements TeacherClassService {
         requireTeacherClass(classId);
         requireTeacherCourse(courseId);
         return requireCourseAssignment(classId, courseId);
+    }
+
+    @Override
+    public TeacherClassListDTO createClass(CreateClassReq req) {
+        if (req == null) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "参数不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(req.getClassName())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "班级名称不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(req.getGrade())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "学段不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(req.getSchool())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "所属学校不能为空");
+        }
+        if (req.getJoinType() == null || (req.getJoinType() != 1 && req.getJoinType() != 2)) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "加入方式无效");
+        }
+
+        Long teacherId = getCurrentTeacherId();
+        String classCode;
+        if (org.springframework.util.StringUtils.hasText(req.getClassCode())) {
+            String normalizedCode = normalizeClassCode(req.getClassCode());
+            assertClassCodeUnique(normalizedCode, null);
+            classCode = normalizedCode;
+        } else {
+            classCode = generateUniqueClassCode();
+        }
+
+        EduClassPO eduClassPO = EduClassPO.builder()
+                .className(req.getClassName().trim())
+                .teacherId(teacherId)
+                .grade(req.getGrade().trim())
+                .school(req.getSchool().trim())
+                .classCode(classCode)
+                .joinType(req.getJoinType())
+                .studentCount(0)
+                .status(1)
+                .createBy(teacherId)
+                .updateBy(teacherId)
+                .createTime(LocalDateTime.now())
+                .updateTime(LocalDateTime.now())
+                .deleted(0)
+                .build();
+        eduClassRepository.insertClass(eduClassPO);
+
+        return TeacherClassListDTO.builder()
+                .id(eduClassPO.getId())
+                .className(eduClassPO.getClassName())
+                .school(eduClassPO.getSchool())
+                .grade(eduClassPO.getGrade())
+                .classCode(eduClassPO.getClassCode())
+                .joinType(eduClassPO.getJoinType())
+                .studentCount(0)
+                .classStatus(eduClassPO.getStatus())
+                .createTime(formatDateTime(eduClassPO.getCreateTime()))
+                .build();
+    }
+
+    @Override
+    public void deleteClass(Long classId) {
+        EduClassPO eduClassPO = requireTeacherClass(classId);
+        Long teacherId = getCurrentTeacherId();
+        eduClassRepository.deleteClass(eduClassPO.getId(), teacherId);
+    }
+
+    @Override
+    public TeacherClassListDTO updateClass(Long classId, UpdateClassReq req) {
+        EduClassPO eduClassPO = requireTeacherClass(classId);
+
+        if (req == null) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "参数不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(req.getClassName())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "班级名称不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(req.getGrade())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "学段不能为空");
+        }
+        if (!org.springframework.util.StringUtils.hasText(req.getSchool())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "所属学校不能为空");
+        }
+        if (req.getJoinType() == null || (req.getJoinType() != 1 && req.getJoinType() != 2)) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "加入方式无效");
+        }
+
+        Long teacherId = getCurrentTeacherId();
+        eduClassRepository.updateClass(
+                eduClassPO.getId(),
+                req.getClassName().trim(),
+                req.getGrade().trim(),
+                req.getSchool().trim(),
+                req.getJoinType(),
+                teacherId
+        );
+
+        return TeacherClassListDTO.builder()
+                .id(eduClassPO.getId())
+                .className(req.getClassName().trim())
+                .school(req.getSchool().trim())
+                .grade(req.getGrade().trim())
+                .joinType(req.getJoinType())
+                .classStatus(eduClassPO.getStatus())
+                .studentCount(eduClassPO.getStudentCount())
+                .createTime(formatDateTime(LocalDateTime.now()))
+                .build();
+    }
+
+    @Override
+    public TeacherClassListDTO updateClassStatus(Long classId, UpdateClassStatusReq req) {
+        EduClassPO eduClassPO = requireTeacherClass(classId);
+
+        if (req == null || req.getClassStatus() == null) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "班级状态不能为空");
+        }
+        Integer classStatus = req.getClassStatus();
+        if (classStatus != 0 && classStatus != 1) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "班级状态值无效");
+        }
+
+        Long teacherId = getCurrentTeacherId();
+        eduClassRepository.updateClassStatus(eduClassPO.getId(), classStatus, teacherId);
+
+        return TeacherClassListDTO.builder()
+                .id(eduClassPO.getId())
+                .classStatus(classStatus)
+                .createTime(formatDateTime(LocalDateTime.now()))
+                .build();
+    }
+
+    @Override
+    public PageResult<TeacherClassListDTO> listTeacherClasses(
+            Integer pageNum,
+            Integer pageSize,
+            String className,
+            String grade,
+            Integer classStatus
+    ) {
+        Long teacherId = getCurrentTeacherId();
+        PageQuery pageQuery = normalizePage(pageNum, pageSize);
+
+        List<EduClassPO> allClasses = eduClassRepository.selectClassesByCondition(
+                teacherId,
+                className,
+                grade,
+                classStatus
+        );
+
+        List<TeacherClassListDTO> records = allClasses.stream()
+                .skip(pageQuery.offset())
+                .limit(pageQuery.getPageSize())
+                .map(this::toTeacherClassListDTO)
+                .toList();
+
+        return PageResult.of(allClasses.size(), pageQuery, records);
+    }
+
+    private TeacherClassListDTO toTeacherClassListDTO(EduClassPO eduClassPO) {
+        return TeacherClassListDTO.builder()
+                .id(eduClassPO.getId())
+                .className(eduClassPO.getClassName())
+                .school(eduClassPO.getSchool())
+                .grade(eduClassPO.getGrade())
+                .joinType(eduClassPO.getJoinType())
+                .studentCount(eduClassPO.getStudentCount())
+                .classStatus(eduClassPO.getStatus())
+                .createTime(formatDateTime(eduClassPO.getCreateTime()))
+                .build();
     }
 
     @Override
