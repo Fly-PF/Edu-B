@@ -43,6 +43,8 @@ public class StudentClassController {
     public Result<Void> leaveClass(@PathVariable Long classId) {
         studentClassService.leaveClass(classId);
         return Result.setResult(HttpStatus.OK, "退出班级成功");
+    }
+
     @Operation(summary = "学生查看班级详情")
     @GetMapping("/{classId}")
     public Result<StudentClassDetailDTO> getStudentClassDetail(@PathVariable Long classId) {
@@ -54,6 +56,8 @@ public class StudentClassController {
     @GetMapping
     public Result<List<StudentJoinedClassDTO>> listJoinedClasses() {
         return Result.setResult(HttpStatus.OK, "查询成功", studentClassService.listJoinedClasses());
+    }
+
     @Operation(summary = "学生查看班级课程列表")
     @GetMapping("/{classId}/courses")
     public Result<PageResult<StudentClassCourseDTO>> listStudentClassCourses(
