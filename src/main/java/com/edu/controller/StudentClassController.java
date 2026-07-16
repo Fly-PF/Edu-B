@@ -4,6 +4,7 @@ import com.edu.common.PageResult;
 import com.edu.common.Result;
 import com.edu.pojo.dto.student.StudentJoinClassRequest;
 import com.edu.pojo.dto.student.StudentJoinedClassDTO;
+import com.edu.pojo.dto.student.StudentPublicClassDTO;
 import com.edu.pojo.dto.StudentClassCourseDTO;
 import com.edu.pojo.dto.StudentClassDetailDTO;
 import com.edu.service.StudentClassService;
@@ -56,6 +57,14 @@ public class StudentClassController {
     @GetMapping
     public Result<List<StudentJoinedClassDTO>> listJoinedClasses() {
         return Result.setResult(HttpStatus.OK, "查询成功", studentClassService.listJoinedClasses());
+    }
+
+    @Operation(summary = "学生搜索可加入公开班级")
+    @GetMapping("/public-joinable")
+    public Result<List<StudentPublicClassDTO>> listPublicJoinableClasses(
+            @RequestParam(required = false) String keyword
+    ) {
+        return Result.setResult(HttpStatus.OK, "查询成功", studentClassService.listPublicJoinableClasses(keyword));
     }
 
     @Operation(summary = "学生查看班级课程列表")

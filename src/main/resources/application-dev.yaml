@@ -1,18 +1,18 @@
 edu:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: 127.0.0.1
+    host: 192.168.40.135
     port: 3306
     database: edu
     username: root
-    password: 316030
+    password: root
   redis:
-    host: 127.0.0.1
+    host: 192.168.40.135
     port: 6379
     #password: root
     database: 6
   minio:
-    endpoint: http://192.168.40.128:9000
+    endpoint: http://192.168.40.135:9000
     access_key: root
     secret_key: rootroot
     bucker_name: edu

@@ -5,6 +5,7 @@ import com.edu.pojo.dto.StudentClassCourseDTO;
 import com.edu.pojo.dto.StudentClassDetailDTO;
 import com.edu.pojo.dto.student.StudentJoinClassRequest;
 import com.edu.pojo.dto.student.StudentJoinedClassDTO;
+import com.edu.pojo.dto.student.StudentPublicClassDTO;
 
 import java.util.List;
 
@@ -18,4 +19,6 @@ public interface StudentClassService {
     void leaveClass(Long classId);
 
     List<StudentJoinedClassDTO> listJoinedClasses();
+
+    List<StudentPublicClassDTO> listPublicJoinableClasses(String keyword);
 }

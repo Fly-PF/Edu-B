@@ -13,6 +13,8 @@ public interface EduClassRepository {
 
     List<EduClassPO> selectClassesByCondition(Long teacherId, String className, String grade, Integer classStatus);
 
+    List<EduClassPO> selectPublicJoinableClasses(String keyword);
+
     int insertClass(EduClassPO eduClassPO);
 
     int updateClass(Long classId, String className, String grade, String school, Integer joinType, Long updateBy);

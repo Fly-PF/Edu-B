@@ -30,21 +30,21 @@ public class GlobalExceptionHandler {
     public Result<?> exceptionHandler(BaseException ex, HttpServletRequest request, HttpServletResponse response) {
         log.error("业务异常 -> 请求路径：{}，异常信息：{}", request.getRequestURI(), ex.getMessage());
         HttpStatus status = ex.getStatus() == null ? HttpStatus.BAD_REQUEST : ex.getStatus();
-        response.setStatus(status.value());
+        response.setStatus(HttpStatus.OK.value());
         return Result.setResult(status, ex.getMessage());
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public Result<?> handle404Exception(Exception ex, HttpServletRequest request, HttpServletResponse response) {
         log.error("404异常 -> 请求路径：{}，异常栈：{}", request.getRequestURI(), ex.toString());
-        response.setStatus(HttpStatus.NOT_FOUND.value());
+        response.setStatus(HttpStatus.OK.value());
         return Result.setResult(HttpStatus.NOT_FOUND, "没有此资源！");
     }
 
     @ExceptionHandler(AuthorizationDeniedException.class)
     public Result<?> handle403Exception(Exception ex, HttpServletRequest request, HttpServletResponse response) {
         log.error("403异常 -> 请求路径：{}，异常栈：{}", request.getRequestURI(), ex.toString());
-        response.setStatus(HttpStatus.FORBIDDEN.value());
+        response.setStatus(HttpStatus.OK.value());
         return Result.setResult(HttpStatus.FORBIDDEN, "权限认证失败！");
     }
 
@@ -57,21 +57,21 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getDefaultMessage() == null ? "请求参数错误" : error.getDefaultMessage())
                 .orElse("请求参数错误");
         log.error("参数校验异常 -> 请求路径：{}，异常信息：{}", request.getRequestURI(), message);
-        response.setStatus(HttpStatus.BAD_REQUEST.value());
+        response.setStatus(HttpStatus.OK.value());
         return Result.setResult(HttpStatus.BAD_REQUEST, message);
     }
 
     @ExceptionHandler({BindException.class, ConstraintViolationException.class, MethodArgumentTypeMismatchException.class, HttpMessageNotReadableException.class})
     public Result<?> handleBadRequestException(Exception ex, HttpServletRequest request, HttpServletResponse response) {
         log.error("请求参数异常 -> 请求路径：{}，异常栈：{}", request.getRequestURI(), ex.toString());
-        response.setStatus(HttpStatus.BAD_REQUEST.value());
+        response.setStatus(HttpStatus.OK.value());
         return Result.setResult(HttpStatus.BAD_REQUEST, "请求参数错误");
     }
 
     @ExceptionHandler(Exception.class)
     public Result<?> handleAllException(Exception ex, HttpServletRequest request, HttpServletResponse response) {
         log.error("未知异常 -> 请求路径：{}，异常栈：{}", request.getRequestURI(), ex.toString());
-        response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        response.setStatus(HttpStatus.OK.value());
         return Result.setResult(HttpStatus.INTERNAL_SERVER_ERROR, "服务器异常");
     }
 }

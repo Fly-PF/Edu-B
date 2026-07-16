@@ -7,6 +7,7 @@ import com.edu.pojo.po.EduClassPO;
 import com.edu.repository.EduClassRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,10 +45,22 @@ public class EduClassRepositoryImpl implements EduClassRepository {
         LambdaQueryWrapper<EduClassPO> queryWrapper = new LambdaQueryWrapper<EduClassPO>()
                 .eq(EduClassPO::getTeacherId, teacherId)
                 .eq(EduClassPO::getDeleted, 0)
-                .like(org.springframework.util.StringUtils.hasText(className), EduClassPO::getClassName, className)
-                .eq(org.springframework.util.StringUtils.hasText(grade), EduClassPO::getGrade, grade)
+                .like(StringUtils.hasText(className), EduClassPO::getClassName, className)
+                .eq(StringUtils.hasText(grade), EduClassPO::getGrade, grade)
                 .eq(classStatus != null, EduClassPO::getStatus, classStatus)
                 .orderByDesc(EduClassPO::getCreateTime);
+        return eduClassMapper.selectList(queryWrapper);
+    }
+
+    @Override
+    public List<EduClassPO> selectPublicJoinableClasses(String keyword) {
+        LambdaQueryWrapper<EduClassPO> queryWrapper = new LambdaQueryWrapper<EduClassPO>()
+                .eq(EduClassPO::getJoinType, 2)
+                .eq(EduClassPO::getStatus, 1)
+                .eq(EduClassPO::getDeleted, 0)
+                .like(StringUtils.hasText(keyword), EduClassPO::getClassName, keyword == null ? null : keyword.trim())
+                .orderByDesc(EduClassPO::getCreateTime)
+                .orderByDesc(EduClassPO::getId);
         return eduClassMapper.selectList(queryWrapper);
     }
 
