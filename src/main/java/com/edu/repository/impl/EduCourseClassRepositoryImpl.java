@@ -53,6 +53,13 @@ public class EduCourseClassRepositoryImpl implements EduCourseClassRepository {
     }
 
     @Override
+    public int deleteByCourseId(Long courseId) {
+        LambdaQueryWrapper<EduCourseClassPO> queryWrapper = new LambdaQueryWrapper<EduCourseClassPO>()
+                .eq(EduCourseClassPO::getCourseId, courseId);
+        return eduCourseClassMapper.delete(queryWrapper);
+    }
+
+    @Override
     public int deleteCourseClass(Long courseId, Long classId) {
         LambdaQueryWrapper<EduCourseClassPO> queryWrapper = new LambdaQueryWrapper<EduCourseClassPO>()
                 .eq(EduCourseClassPO::getCourseId, courseId)

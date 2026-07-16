@@ -13,5 +13,7 @@ public interface EduClassStudentRepository {
 
     Long countStudentsByClassId(Long classId);
 
+    int insertClassStudent(EduClassStudentPO classStudent);
+
     int deleteClassStudent(Long classId, Long studentId);
 }

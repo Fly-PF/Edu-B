@@ -2,9 +2,11 @@ package com.edu;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @SpringBootTest
+@ActiveProfiles("test")
 class EduBApplicationTests {
 
     @Test
