@@ -3,8 +3,6 @@ package com.edu.controller;
 import com.edu.auth.entity.MailLoginReq;
 import com.edu.common.Result;
 import com.edu.auth.entity.UsernameLoginReq;
-import com.edu.pojo.dto.UserInfoDTO;
-import com.edu.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -35,22 +33,6 @@ public class AuthController {
     public Result<?> mailLogin(@RequestBody MailLoginReq mailLoginReq) {
         log.info("======mailLogin in Controller: {}", mailLoginReq);
         return Result.setResult(HttpStatus.OK, "success", mailLoginReq);
-    }
-
-    @Operation(summary = "api接口1")
-    @PostMapping("/api/test1")
-    public Result<?> apiAccess1() {
-        log.info("======apiAccess1 in Controller");
-        UserInfoDTO loginUser = SecurityUtil.getLoginUser();
-        return Result.setResult(HttpStatus.OK, "success", loginUser);
-    }
-
-    @Operation(summary = "api接口2")
-    @PostMapping("/api/test2")
-    @PreAuthorize("hasRole('ADMIN')")
-    public Result<?> apiAccess2() {
-        log.info("======apiAccess2 in Controller");
-        return Result.setResult(HttpStatus.OK, "success");
     }
 
     @Operation(summary = "测试接口1")
