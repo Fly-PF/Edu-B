@@ -28,4 +28,18 @@ edu:
     captcha:
       length: 6
       expire-minutes: 5
-
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-5.6-luna}
+      timeout-seconds: ${OPENAI_TIMEOUT_SECONDS:20}
+    face:
+      tencent:
+        secret-id: ${TENCENT_FACE_SECRET_ID:}
+        secret-key: ${TENCENT_FACE_SECRET_KEY:}
+        region: ${TENCENT_FACE_REGION:ap-guangzhou}
+        endpoint: ${TENCENT_FACE_ENDPOINT:iai.tencentcloudapi.com}
+        version: ${TENCENT_FACE_VERSION:2020-03-03}
+        compare-threshold: ${TENCENT_FACE_COMPARE_THRESHOLD:80}
+        timeout-seconds: ${TENCENT_FACE_TIMEOUT_SECONDS:20}
