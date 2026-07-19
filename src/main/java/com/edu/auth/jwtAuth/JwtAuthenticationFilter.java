@@ -54,10 +54,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/api/course-files/**"
     );
 
+    private static final List<String> PUBLIC_GET_PATHS = List.of(
+            "/api/courses",
+            "/api/courses/*",
+            "/api/courses/*/chapters"
+    );
+
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestURI = request.getRequestURI();
-        return EXCLUDE_PATHS.stream().anyMatch(path -> new AntPathMatcher().match(path, requestURI));
+        if (EXCLUDE_PATHS.stream().anyMatch(path -> PATH_MATCHER.match(path, requestURI))) {
+            return true;
+        }
+
+        return "GET".equalsIgnoreCase(request.getMethod())
+                && PUBLIC_GET_PATHS.stream().anyMatch(path -> PATH_MATCHER.match(path, requestURI));
     }
 
     @Override

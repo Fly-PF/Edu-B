@@ -66,7 +66,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public List<CourseVO> listPublicCourses(String keyword, String grade, Integer difficulty, Integer courseType) {
         validateCourseFilter(difficulty, courseType);
-        UserInfoDTO user = currentUser();
+        UserInfoDTO user = optionalUser();
         return courseRepository.selectPublishedCourses(keyword, grade, difficulty, courseType).stream()
                 .map(course -> toCourseVO(course, user))
                 .toList();
@@ -74,7 +74,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public CourseVO getCourse(Long courseId) {
-        UserInfoDTO user = currentUser();
+        UserInfoDTO user = optionalUser();
         EduCoursePO course = requireCourse(courseId);
         if (!canViewCourse(course, user)) {
             throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该课程");
@@ -84,7 +84,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public List<ChapterVO> listCourseChapters(Long courseId) {
-        UserInfoDTO user = currentUser();
+        UserInfoDTO user = optionalUser();
         EduCoursePO course = requireCourse(courseId);
         if (!canViewCourse(course, user)) {
             throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该课程目录");
@@ -688,8 +688,15 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private boolean canViewCourse(EduCoursePO course, UserInfoDTO user) {
+        if (isPublishedPublic(course)) {
+            return true;
+        }
+
+        if (user == null || user.getUserId() == null) {
+            return false;
+        }
+
         return Objects.equals(course.getTeacherId(), user.getUserId())
-                || isPublishedPublic(course)
                 || hasClassAccess(course, user);
     }
 
@@ -721,6 +728,10 @@ public class CourseServiceImpl implements CourseService {
             throw new BaseException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
         return user;
+    }
+
+    private UserInfoDTO optionalUser() {
+        return SecurityUtil.getLoginUser();
     }
 
     private Integer parseStatus(String status) {

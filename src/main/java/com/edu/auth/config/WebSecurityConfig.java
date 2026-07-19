@@ -21,6 +21,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+import static org.springframework.http.HttpMethod.GET;
+
 @Slf4j
 @Configuration
 @EnableWebSecurity
@@ -66,6 +68,7 @@ public class WebSecurityConfig {
                         "/api/user/avatar/image",
                         "/api/course-files/**"
                 ).permitAll()
+                .requestMatchers(GET, "/api/courses", "/api/courses/*", "/api/courses/*/chapters").permitAll()
         );
 
         http.exceptionHandling(ex -> ex
