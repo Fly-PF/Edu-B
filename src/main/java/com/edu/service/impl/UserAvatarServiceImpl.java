@@ -22,8 +22,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -32,7 +30,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserAvatarServiceImpl implements UserAvatarService {
-    private static final String AVATAR_DIR = "avatar";
     private static final long MAX_AVATAR_SIZE = 5 * 1024 * 1024L;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
@@ -163,7 +160,7 @@ public class UserAvatarServiceImpl implements UserAvatarService {
         if (!StringUtils.hasText(objectName) || getDefaultAvatar().equals(objectName)) {
             return false;
         }
-        return objectName.startsWith(AVATAR_DIR + "/");
+        return objectName.startsWith(getAvatarFilesBaseUrl());
     }
 
     private void removeObject(String objectName) throws Exception {
@@ -184,7 +181,7 @@ public class UserAvatarServiceImpl implements UserAvatarService {
     }
 
     private String buildObjectName(Long userId, MultipartFile file) {
-        return AVATAR_DIR + "/" + userId + "/" + UUID.randomUUID() + "." + getExtension(file);
+        return getAvatarFilesBaseUrl() + userId + "/" + UUID.randomUUID() + "." + getExtension(file);
     }
 
     private String getExtension(MultipartFile file) {
@@ -201,27 +198,20 @@ public class UserAvatarServiceImpl implements UserAvatarService {
     }
 
     private String getDefaultAvatar() {
-        String defaultAvatar = minioProperties.getDefaultAvatar();
+        String defaultAvatar = minioProperties.getAvatar().getDefaultAvatar();
         if (!StringUtils.hasText(defaultAvatar)) {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "默认头像未配置");
         }
-        return defaultAvatar;
+        return trimStartSlash(defaultAvatar);
     }
 
-    private String buildAvatarUrl(String avatar) {
-        String publicBaseUrl = trimEndSlash(minioProperties.getPublicBaseUrl());
-        String objectName = trimStartSlash(avatar);
-        if (!StringUtils.hasText(publicBaseUrl)) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "MinIO配置错误");
+    private String getAvatarFilesBaseUrl() {
+        String avatarFilesBaseUrl = minioProperties.getAvatar().getAvatarFilesBaseUrl();
+        if (!StringUtils.hasText(avatarFilesBaseUrl)) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "头像存储路径未配置");
         }
-        return publicBaseUrl + "/api/user/avatar/image?objectName=" + URLEncoder.encode(objectName, StandardCharsets.UTF_8);
-    }
-
-    private String trimEndSlash(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+        avatarFilesBaseUrl = trimStartSlash(avatarFilesBaseUrl);
+        return avatarFilesBaseUrl.endsWith("/") ? avatarFilesBaseUrl : avatarFilesBaseUrl + "/";
     }
 
     private String trimStartSlash(String value) {

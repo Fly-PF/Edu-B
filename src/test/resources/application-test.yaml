@@ -17,7 +17,9 @@ edu:
     secret_key: test-secret-key
     bucker_name: edu-test
     public_base_url: http://localhost:8080
-    default_avatar: avatar/default_avatar.png
+    avatar:
+      avatar_files_base_url: avatar/
+      default_avatar: avatar/default_avatar.png
   jwt:
     secret-key: test-jwt-secret-key-abcdefghijklmnop
     expire-time: 7200000

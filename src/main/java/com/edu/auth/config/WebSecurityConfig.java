@@ -5,6 +5,7 @@ import com.edu.auth.handler.AuthenticationHandler;
 import com.edu.auth.jwtAuth.JwtAuthenticationFilter;
 import com.edu.auth.mailLogin.MailAuthenticationFilter;
 import com.edu.auth.usernameLogin.UsernameAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -60,6 +61,7 @@ public class WebSecurityConfig {
                 .anonymous(AbstractHttpConfigurer::disable);
 
         http.authorizeHttpRequests(authorize -> authorize
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 .requestMatchers(
                         "/doc.html",
                         "/v3/api-docs/**",

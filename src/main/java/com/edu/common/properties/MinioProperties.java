@@ -19,5 +19,27 @@ public class MinioProperties {
     private String secretKey;
     private String buckerName;
     private String publicBaseUrl;
-    private String defaultAvatar;
+    @Builder.Default
+    private Avatar avatar = new Avatar();
+    @Builder.Default
+    private Rag rag = new Rag();
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Avatar {
+        private String avatarFilesBaseUrl;
+        private String defaultAvatar;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Rag {
+        private String ragFilesBaseUrl;
+        private Integer maxRefRagKbCount;
+        private Integer maxRefRagDocCount;
+    }
 }

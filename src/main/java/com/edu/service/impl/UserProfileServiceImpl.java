@@ -1,6 +1,5 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.MinioProperties;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.UpdateUserProfileRequest;
 import com.edu.pojo.dto.UserInfoDTO;
@@ -16,14 +15,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-
 @Service
 @RequiredArgsConstructor
 public class UserProfileServiceImpl implements UserProfileService {
     private final SysUserRepository sysUserRepository;
-    private final MinioProperties minioProperties;
     private final AvatarUrlBuilder avatarUrlBuilder;
 
     @Override
@@ -101,39 +96,4 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .school(user.getSchool())
                 .build();
     }
-
-    private String buildAvatarUrl(String avatar) {
-        if (!StringUtils.hasText(avatar)) {
-            avatar = getDefaultAvatar();
-        }
-        String publicBaseUrl = trimEndSlash(minioProperties.getPublicBaseUrl());
-        String objectName = trimStartSlash(avatar);
-        if (!StringUtils.hasText(publicBaseUrl)) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "MinIO配置错误");
-        }
-        return publicBaseUrl + "/api/user/avatar/image?objectName=" + URLEncoder.encode(objectName, StandardCharsets.UTF_8);
-    }
-
-    private String getDefaultAvatar() {
-        String defaultAvatar = minioProperties.getDefaultAvatar();
-        if (!StringUtils.hasText(defaultAvatar)) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "默认头像未配置");
-        }
-        return defaultAvatar;
-    }
-
-    private String trimEndSlash(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private String trimStartSlash(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.startsWith("/") ? value.substring(1) : value;
-    }
-
 }

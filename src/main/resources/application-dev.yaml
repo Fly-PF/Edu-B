@@ -17,7 +17,33 @@ edu:
     secret_key: rootroot
     bucker_name: edu
     public_base_url: http://localhost:8080
-    default_avatar: avatar/default_avatar.png
+    avatar:
+      avatar_files_base_url: avatar/files/
+      default_avatar: avatar/default_avatar.png
+    rag:
+      rag_files_base_url: rag/files/
+      max_ref_rag_kb_count: 10
+      max_ref_rag_doc_count: 100
+  ai-model:
+    openai:
+      api-key: sk-xxx
+      base-url: https://api.deepseek.com
+      chat-model:
+        model-name: deepseek-v4-flash
+        completions-path: null
+      embedding-model:
+        model-name: qwen-plus
+        completions-path: /chat/completions
+    alibaba:
+      api-key: sk-xxx
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      chat-model:
+        model-name: qwen-plus
+        completions-path: /chat/completions
+      embedding-model:
+        model-name: qwen-plus
+        completions-path: /chat/completions
+
   # jwt、mail 不用改动，本地自测完全通用
   jwt:
     secret-key: abcdefghijklmnopqabcdefghijklmnopq
