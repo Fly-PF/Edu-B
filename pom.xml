@@ -22,8 +22,9 @@
         <jjwt.version>0.12.6</jjwt.version>
         <knife4j.version>4.4.0</knife4j.version>
         <hibernate-validator.version>8.0.1.Final</hibernate-validator.version>
-        <minio.version>8.5.17</minio.version>
-        <dashscope-sdk.version>2.22.25</dashscope-sdk.version>
+        <minio.version>9.0.3</minio.version>
+        <tika.version>3.3.1</tika.version>
+        <milvus.version>3.0.3</milvus.version>
     </properties>
 
     <dependencyManagement>
@@ -39,6 +40,41 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+            <version>${milvus.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parser-text-module</artifactId>
+            <version>${tika.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parser-microsoft-module</artifactId>
+            <version>${tika.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parser-pdf-module</artifactId>
+            <version>${tika.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>

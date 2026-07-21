@@ -22,32 +22,26 @@ edu:
       default_avatar: avatar/default_avatar.png
     rag:
       rag_files_base_url: rag/files/
+      max_rag_file_size: 100MB
       max_ref_rag_kb_count: 10
       max_ref_rag_doc_count: 100
   ai-model:
     openai:
-      api-key: sk-xxx
-      base-url: https://api.deepseek.com
+      api-key: sk-041315448c034a198794b90818510324
+      base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
       chat-model:
-        model-name: deepseek-v4-flash
+        model-type: multimodel
+        model-name: qwen3.5-omni-flash
         completions-path: null
       embedding-model:
-        model-name: qwen-plus
-        completions-path: /chat/completions
-    alibaba:
-      api-key: sk-xxx
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      chat-model:
-        model-name: qwen-plus
-        completions-path: /chat/completions
-      embedding-model:
-        model-name: qwen-plus
-        completions-path: /chat/completions
+        model-type: textembedmodel
+        model-name: qwen3.7-text-embedding
+        completions-path: null
 
   # jwt、mail 不用改动，本地自测完全通用
   jwt:
     secret-key: abcdefghijklmnopqabcdefghijklmnopq
-    expire-time: 7200000
+    expire-time: 72000000000
     jwt-name: Authorization
   mail:
     from-name: Edu-B

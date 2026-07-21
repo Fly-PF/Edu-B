@@ -1,99 +1,56 @@
 package com.edu.controller;
 
-import com.edu.common.properties.AIModelProperties;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
+import com.edu.common.Result;
+import com.edu.service.RagService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.Data;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.http.MediaType;
-import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import io.micrometer.observation.ObservationRegistry;
-import reactor.core.Disposable;
-
-import java.io.IOException;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rag")
 @Tag(name = "RAG")
 public class RagController {
+    private final RagService ragService;
 
-    private final AIModelProperties aiModelProperties;
+    @Operation(summary = "上传RAG文件")
+    @PostMapping("/files/upload")
+    public Result<Void> uploadRagFile(HttpServletRequest request, @RequestPart("file") MultipartFile file) {
+        ragService.uploadRagFile(request, file);
+        return Result.setResult(HttpStatus.OK, "上传成功");
+    }
 
     @Operation(summary = "测试AI聊天接口")
-    @PostMapping(value = "/chat/test", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chatTest(@Valid @RequestBody ChatTestReq request) {
-        SseEmitter emitter = new SseEmitter(0L);
-
-        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
-        if (provider == null || !StringUtils.hasText(provider.getApiKey()) || !StringUtils.hasText(provider.getBaseUrl())
-                || provider.getChatModel() == null || !StringUtils.hasText(provider.getChatModel().getModelName())) {
-            send(emitter, "AI 配置不完整，请检查 edu.ai-model.openai 相关配置");
-            emitter.complete();
-            return emitter;
-        }
-
-        OpenAiChatModel openAiChatModel = buildOpenAiChatModel(provider);
-        Prompt prompt = new Prompt(new UserMessage(request.getMessage()));
-        Disposable disposable = openAiChatModel.stream(prompt)
-                .map(ChatResponse::getResult)
-                .filter(generation -> generation != null)
-                .map(Generation::getOutput)
-                .map(message -> message.getText())
-                .filter(StringUtils::hasLength)
-                .subscribe(
-                        content -> send(emitter, content),
-                        error -> {
-                            send(emitter, "AI 调用失败: " + error.getMessage());
-                            emitter.completeWithError(error);
-                        },
-                        emitter::complete
-                );
-
-        emitter.onCompletion(disposable::dispose);
-        emitter.onTimeout(disposable::dispose);
-
-        return emitter;
+    @PostMapping(value = "/chat/test")
+    public Result<String> chatTest(@Valid @RequestParam String message,
+                                   @RequestParam(required = false) List<MultipartFile> files) {
+        return Result.setResult(HttpStatus.OK, "success", ragService.chatTest(message, files));
     }
 
-    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider) {
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .apiKey(provider.getApiKey())
-                .baseUrl(provider.getBaseUrl())
-                .model(provider.getChatModel().getModelName())
-                .build();
-
-        return OpenAiChatModel.builder()
-                .options(options)
-                .observationRegistry(ObservationRegistry.NOOP)
-                .build();
+    @Operation(summary = "测试OpenAI向量接口")
+    @PostMapping("/embedding/test")
+    public Result<float[]> embeddingTest(@Valid @RequestBody ChatTestReq request) {
+        return Result.setResult(HttpStatus.OK, "success", ragService.embeddingTest(request.getMessage()));
     }
 
-    private void send(SseEmitter emitter, String content) {
-        try {
-            emitter.send(SseEmitter.event().data(content));
-        } catch (IOException e) {
-            emitter.completeWithError(e);
-        }
-    }
-
-    @Data
     public static class ChatTestReq {
         @NotBlank(message = "message 不能为空")
         private String message;
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
     }
 }

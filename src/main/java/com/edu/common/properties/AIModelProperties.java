@@ -17,8 +17,11 @@ public class AIModelProperties {
     @Builder.Default
     private Provider openai = new Provider();
 
-    @Builder.Default
-    private Provider alibaba = new Provider();
+    public enum ModelType {
+        TextModel,
+        MultiModel,
+        TextEmbedModel
+    }
 
     @Data
     @Builder
@@ -40,6 +43,7 @@ public class AIModelProperties {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Model {
+        private ModelType modelType;
         private String modelName;
         private String completionsPath;
     }

@@ -118,7 +118,7 @@ public class UserAvatarServiceImpl implements UserAvatarService {
             minioClient.putObject(PutObjectArgs.builder()
                     .bucket(getBucketName())
                     .object(objectName)
-                    .stream(inputStream, file.getSize(), -1)
+                    .stream(inputStream, file.getSize(), -1L)
                     .contentType(file.getContentType())
                     .build());
         } catch (Exception ex) {
