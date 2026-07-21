@@ -121,6 +121,10 @@ CREATE TABLE edu_course
     intro          TEXT COMMENT '课程简介',
     total_duration INT           DEFAULT 0 COMMENT '总时长分钟',
     total_chapter  INT           DEFAULT 0 COMMENT '总章节数',
+    series_name    VARCHAR(100) COMMENT '课程系列名称',
+    series_order   INT           DEFAULT 0 COMMENT '系列内展示顺序',
+    like_count     INT           DEFAULT 0 COMMENT '点赞数',
+    publish_time   DATETIME COMMENT '首次公开发布时间',
     is_public      TINYINT       DEFAULT 0 COMMENT '0私有 1平台公开',
     status         TINYINT       DEFAULT 1 COMMENT '0草稿 1已发布 2下架',
     create_by      BIGINT,
@@ -133,6 +137,22 @@ CREATE TABLE edu_course
     INDEX idx_grade (grade),
     INDEX idx_course_type (course_type)
 ) COMMENT 'AI课程主表';
+
+DROP TABLE IF EXISTS edu_course_category;
+CREATE TABLE edu_course_category
+(
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name       VARCHAR(100)  NOT NULL COMMENT '分类名称',
+    sort_order INT           NOT NULL DEFAULT 0 COMMENT '展示排序，数值越小越靠前',
+    tags_json  VARCHAR(2000) NOT NULL COMMENT '用于筛选课程的标签 JSON 数组',
+    match_all  TINYINT       NOT NULL DEFAULT 0 COMMENT '0匹配任意标签 1必须匹配全部标签',
+    create_by  BIGINT,
+    update_by  BIGINT,
+    create_time DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted    TINYINT       DEFAULT 0,
+    INDEX idx_category_sort (sort_order)
+) COMMENT '平台课程展示分类，不改变课程自身属性';
 
 DROP TABLE IF EXISTS edu_chapter;
 CREATE TABLE edu_chapter
