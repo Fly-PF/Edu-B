@@ -65,10 +65,24 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public List<CourseVO> listPublicCourses(String keyword, String grade, Integer difficulty, Integer courseType) {
+        return listPublicCourses(keyword, grade, difficulty, courseType, null, false);
+    }
+
+    @Override
+    public List<CourseVO> listPublicCourses(
+            String keyword,
+            String grade,
+            Integer difficulty,
+            Integer courseType,
+            String tags,
+            boolean matchAll
+    ) {
         validateCourseFilter(difficulty, courseType);
         UserInfoDTO user = currentUser();
+        List<String> selectedTags = parseTags(tags);
         return courseRepository.selectPublishedCourses(keyword, grade, difficulty, courseType).stream()
                 .map(course -> toCourseVO(course, user))
+                .filter(course -> matchesTags(course.getTags(), selectedTags, matchAll))
                 .toList();
     }
 
@@ -217,6 +231,9 @@ public class CourseServiceImpl implements CourseService {
                 .updateTime(now)
                 .deleted(0)
                 .extJson(writeTags("{}", request.getTags()))
+                .seriesName(normalizeSeriesName(request.getSeriesName()))
+                .seriesOrder(nonNegative(request.getSeriesOrder()))
+                .likeCount(0)
                 .build();
         courseRepository.insertCourse(course);
         return toCourseVO(course, user);
@@ -241,6 +258,12 @@ public class CourseServiceImpl implements CourseService {
         }
         if (request.getCoverUrl() != null) {
             course.setCover(request.getCoverUrl());
+        }
+        if (request.getSeriesName() != null) {
+            course.setSeriesName(normalizeSeriesName(request.getSeriesName()));
+        }
+        if (request.getSeriesOrder() != null) {
+            course.setSeriesOrder(nonNegative(request.getSeriesOrder()));
         }
         if (request.getGrade() != null) {
             if (!StringUtils.hasText(request.getGrade())) {
@@ -334,6 +357,9 @@ public class CourseServiceImpl implements CourseService {
 
         course.setStatus(STATUS_PUBLISHED);
         course.setPublicFlag(PUBLIC_COURSE);
+        if (course.getPublishTime() == null) {
+            course.setPublishTime(LocalDateTime.now());
+        }
         course.setUpdateBy(user.getUserId());
         course.setUpdateTime(LocalDateTime.now());
         applyCourseTotals(course, chapters);
@@ -626,6 +652,10 @@ public class CourseServiceImpl implements CourseService {
                 .totalDuration(defaultNumber(course.getTotalDuration()))
                 .totalChapter(chapters.size())
                 .resourceCount(resourceCount)
+                .seriesName(course.getSeriesName())
+                .seriesOrder(defaultNumber(course.getSeriesOrder()))
+                .likeCount(defaultNumber(course.getLikeCount()))
+                .publishedTime(course.getPublishTime())
                 .status(statusText(course.getStatus()))
                 .publicCourse(Objects.equals(course.getPublicFlag(), PUBLIC_COURSE))
                 .isPublic(course.getPublicFlag())
@@ -812,6 +842,27 @@ public class CourseServiceImpl implements CourseService {
         if (courseType != null && (courseType < 1 || courseType > 3)) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "课程类型不正确");
         }
+    }
+
+    private List<String> parseTags(String tags) {
+        if (!StringUtils.hasText(tags)) return List.of();
+        return java.util.Arrays.stream(tags.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private boolean matchesTags(List<String> courseTags, List<String> selectedTags, boolean matchAll) {
+        if (selectedTags.isEmpty()) return true;
+        List<String> normalizedCourseTags = courseTags == null ? List.of() : courseTags;
+        return matchAll
+                ? selectedTags.stream().allMatch(normalizedCourseTags::contains)
+                : selectedTags.stream().anyMatch(normalizedCourseTags::contains);
+    }
+
+    private String normalizeSeriesName(String seriesName) {
+        return StringUtils.hasText(seriesName) ? seriesName.trim() : null;
     }
 
     private int nonNegative(Integer value) {
