@@ -6,9 +6,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,14 +20,18 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rag")
+@Validated
 @Tag(name = "RAG")
 public class RagController {
     private final RagService ragService;
 
     @Operation(summary = "上传RAG文件")
     @PostMapping("/files/upload")
-    public Result<Void> uploadRagFile(HttpServletRequest request, @RequestPart("file") MultipartFile file) {
-        ragService.uploadRagFile(request, file);
+    public Result<Void> uploadRagFile(HttpServletRequest request,
+                                      @RequestPart("file") MultipartFile file,
+                                      @RequestParam("kb_id") @NotNull @Min(1) Long kbId,
+                                      @RequestParam("doc_id") @NotNull @Min(1) Long docId) {
+        ragService.uploadRagFile(request, file, kbId, docId);
         return Result.setResult(HttpStatus.OK, "上传成功");
     }
 

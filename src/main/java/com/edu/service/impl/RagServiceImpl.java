@@ -2,11 +2,20 @@ package com.edu.service.impl;
 
 import com.edu.common.properties.AIModelProperties;
 import com.edu.common.properties.MinioProperties;
+import com.edu.common.dto.RagTextChunkDTO;
+import com.edu.common.dto.RagVectorChunkDTO;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.repository.RagRepository;
 import com.edu.service.RagService;
+import com.edu.util.ImageTextExtractUtil;
+import com.edu.util.MdTextExtractUtil;
+import com.edu.util.PdfTextExtractUtil;
+import com.edu.util.PptTextExtractUtil;
 import com.edu.util.SecurityUtil;
+import com.edu.util.TextEmbeddingUtil;
+import com.edu.util.WordTextExtractUtil;
+import com.edu.util.TxtTextExtractUtil;
 import io.micrometer.observation.ObservationRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +35,7 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -54,17 +64,20 @@ public class RagServiceImpl implements RagService {
     private final AIModelProperties aiModelProperties;
     private final MinioProperties minioProperties;
     private final RagRepository ragRepository;
+    private final PdfTextExtractUtil pdfTextExtractUtil;
+    private final PptTextExtractUtil pptTextExtractUtil;
+    private final TxtTextExtractUtil txtTextExtractUtil;
+    private final MdTextExtractUtil mdTextExtractUtil;
+    private final WordTextExtractUtil wordTextExtractUtil;
+    private final ImageTextExtractUtil imageTextExtractUtil;
+    private final TextEmbeddingUtil textEmbeddingUtil;
 
     @Override
-    public void uploadRagFile(HttpServletRequest request, MultipartFile file) {
-        validateSingleFile(request);
-        validateRagFile(file);
-        UserInfoDTO loginUser = SecurityUtil.getLoginUser();
-        if (loginUser == null || loginUser.getUserId() == null) {
-            throw new BaseException(HttpStatus.UNAUTHORIZED, "请先登录");
-        }
-
-        ragRepository.uploadObject(file, buildObjectName(loginUser.getUserId(), file));
+    public void uploadRagFile(HttpServletRequest request, MultipartFile file, Long kbId, Long docId) {
+        validateUploadRequest(request, kbId, docId, file);
+        List<RagTextChunkDTO> textChunks = extractText(file);
+        ragRepository.insertVectorChunks(buildVectorChunks(textChunks, kbId, docId));
+        uploadFile(file);
     }
 
     @Override
@@ -178,6 +191,82 @@ public class RagServiceImpl implements RagService {
                 && !allowedContentTypes.contains(contentType.toLowerCase(Locale.ROOT))) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "文件类型与文件后缀不匹配");
         }
+    }
+
+    private List<RagTextChunkDTO> extractText(MultipartFile file) {
+        String extension = getExtension(file);
+        if (isImage(extension)) {
+            try (InputStream inputStream = file.getInputStream()) {
+                String content = imageTextExtractUtil.extract(inputStream);
+                return List.of(new RagTextChunkDTO("image 1/1", content));
+            } catch (BaseException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "图片文字提取失败");
+            }
+        }
+
+        try (InputStream inputStream = file.getInputStream()) {
+            return switch (extension) {
+                case "pdf" -> pdfTextExtractUtil.extract(inputStream);
+                case "ppt", "pptx" -> pptTextExtractUtil.extract(inputStream);
+                case "txt" -> txtTextExtractUtil.extract(inputStream);
+                case "md" -> mdTextExtractUtil.extract(inputStream);
+                case "docx", "doc" -> wordTextExtractUtil.extract(inputStream, extension);
+                default -> throw new BaseException(HttpStatus.BAD_REQUEST, "暂不支持该文件文字提取");
+            };
+        } catch (BaseException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "文件文字提取失败");
+        }
+    }
+
+    private List<RagVectorChunkDTO> buildVectorChunks(List<RagTextChunkDTO> textChunks, Long kbId, Long docId) {
+        List<RagVectorChunkDTO> vectorChunks = new ArrayList<>();
+        for (RagTextChunkDTO textChunk : textChunks) {
+            if (textChunk == null || !StringUtils.hasText(textChunk.getContent())) {
+                continue;
+            }
+            vectorChunks.add(new RagVectorChunkDTO(kbId, docId, textChunk.getSourceInfo(), textChunk.getContent(),
+                    textEmbeddingUtil.embed(textChunk.getContent()).getVector()));
+        }
+        return vectorChunks;
+    }
+
+    private void validateUploadRequest(HttpServletRequest request, Long kbId, Long docId, MultipartFile file) {
+        validateSingleFile(request);
+        validateRagIds(kbId, docId);
+        validateRagFile(file);
+    }
+
+    private void uploadFile(MultipartFile file) {
+        UserInfoDTO loginUser = getLoginUser();
+        ragRepository.uploadObject(file, buildObjectName(loginUser.getUserId(), file));
+    }
+
+    private UserInfoDTO getLoginUser() {
+        UserInfoDTO loginUser = SecurityUtil.getLoginUser();
+        if (loginUser == null || loginUser.getUserId() == null) {
+            throw new BaseException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        return loginUser;
+    }
+
+    private void validateRagIds(Long kbId, Long docId) {
+        if (kbId == null || kbId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "kb_id必须为正数");
+        }
+        if (docId == null || docId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "doc_id必须为正数");
+        }
+    }
+
+    private boolean isImage(String extension) {
+        return switch (extension) {
+            case "jpg", "jpeg", "png", "webp" -> true;
+            default -> false;
+        };
     }
 
     private void validateSingleFile(HttpServletRequest request) {

@@ -35,6 +35,12 @@ public class AIModelProperties {
         private Model chatModel = new Model();
 
         @Builder.Default
+        private Model textModel = new Model();
+
+        @Builder.Default
+        private Model multiModel = new Model();
+
+        @Builder.Default
         private Model embeddingModel = new Model();
     }
 
@@ -45,7 +51,6 @@ public class AIModelProperties {
     public static class Model {
         private ModelType modelType;
         private String modelName;
-        private String completionsPath;
     }
 
 }
