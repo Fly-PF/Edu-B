@@ -188,3 +188,39 @@ CREATE TABLE edu_study_record
     INDEX idx_student_id (student_id),
     INDEX idx_course_id (course_id)
 ) COMMENT '学生学习进度记录';
+
+-- 智能学伴会话与消息
+CREATE TABLE IF NOT EXISTS edu_ai_companion_session
+(
+    id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+    student_id        BIGINT       NOT NULL COMMENT '学生用户ID',
+    course_id         BIGINT       NOT NULL COMMENT '当前课程ID',
+    chapter_id        BIGINT COMMENT '创建会话时所在章节ID',
+    title             VARCHAR(100) NOT NULL COMMENT '会话标题',
+    last_message_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最近消息时间',
+    create_time       DATETIME              DEFAULT CURRENT_TIMESTAMP,
+    update_time       DATETIME              DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted           TINYINT               DEFAULT 0,
+    INDEX idx_ai_session_student (student_id, last_message_time),
+    INDEX idx_ai_session_course (course_id)
+) COMMENT '学生智能学伴会话';
+
+CREATE TABLE IF NOT EXISTS edu_ai_companion_message
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    session_id  BIGINT      NOT NULL COMMENT '会话ID',
+    student_id  BIGINT      NOT NULL COMMENT '学生用户ID',
+    role        VARCHAR(20) NOT NULL COMMENT '消息角色 USER/ASSISTANT',
+    content     TEXT        NOT NULL COMMENT '消息内容',
+    chapter_id  BIGINT COMMENT '提问时所在章节ID',
+    resource_id BIGINT COMMENT '提问时所在资源ID',
+    generation_mode VARCHAR(20) COMMENT '生成方式 MODEL/FALLBACK',
+    model_name  VARCHAR(100) COMMENT '生成回答的模型名称',
+    source_summary VARCHAR(500) COMMENT '回答参考的课程章节资源',
+    safety_status VARCHAR(20) COMMENT '安全状态 NORMAL/BLOCKED',
+    response_time_ms BIGINT COMMENT '回答生成耗时（毫秒）',
+    create_time DATETIME             DEFAULT CURRENT_TIMESTAMP,
+    deleted     TINYINT              DEFAULT 0,
+    INDEX idx_ai_message_session (session_id, create_time),
+    INDEX idx_ai_message_student (student_id)
+) COMMENT '学生智能学伴消息';
