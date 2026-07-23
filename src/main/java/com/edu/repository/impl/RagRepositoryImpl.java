@@ -11,9 +11,11 @@ import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.service.utility.request.FlushReq;
+import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,31 @@ public class RagRepositoryImpl implements RagRepository {
     }
 
     @Override
+    public void deleteObject(String objectName) {
+        try {
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(getBucketName())
+                    .object(objectName)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("删除RAG文件失败，objectName={}", objectName, ex);
+        }
+    }
+
+    @Override
+    public void deleteObjectStrict(String objectName) {
+        try {
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(getBucketName())
+                    .object(objectName)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("删除RAG文件失败，objectName={}", objectName, ex);
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG文件回滚失败");
+        }
+    }
+
+    @Override
     public void insertVectorChunks(List<RagVectorChunkDTO> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return;
@@ -76,6 +103,36 @@ public class RagRepositoryImpl implements RagRepository {
         } catch (Exception ex) {
             log.error("写入RAG向量到Milvus失败", ex);
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG向量写入Milvus失败");
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
+
+    @Override
+    public void deleteVectorChunks(Long kbId, Long docId) {
+        validateMilvusProperties();
+
+        MilvusClientV2 client = null;
+        try {
+            client = new MilvusClientV2(ConnectConfig.builder()
+                    .uri(milvusProperties.getEndpoint())
+                    .token(milvusProperties.getToken())
+                    .dbName(milvusProperties.getDatabaseName())
+                    .build());
+            String collectionName = milvusProperties.getRag().getCollectionName();
+            client.delete(DeleteReq.builder()
+                    .databaseName(milvusProperties.getDatabaseName())
+                    .collectionName(collectionName)
+                    .filter("kb_id == " + kbId + " and doc_id == " + docId)
+                    .build());
+            client.flush(FlushReq.builder()
+                    .collectionNames(List.of(collectionName))
+                    .build());
+        } catch (Exception ex) {
+            log.error("删除RAG向量失败，kbId={}, docId={}", kbId, docId, ex);
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG向量回滚失败");
         } finally {
             if (client != null) {
                 client.close();

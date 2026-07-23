@@ -69,6 +69,7 @@ public class WebSecurityConfig {
                         "/swagger-resources/**",
                         "/api/user/register/student",
                         "/api/user/avatar/image",
+                        "/api/rag/kb/cover",
                         "/api/course-files/**"
                 ).permitAll()
                 .requestMatchers(GET, "/api/courses", "/api/courses/*", "/api/courses/*/chapters").permitAll()

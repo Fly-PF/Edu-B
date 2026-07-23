@@ -52,6 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/swagger-resources/**",
             "/api/user/register/student",
             "/api/user/avatar/image",
+            "/api/rag/kb/cover",
             "/api/course-files/**"
     );
 
