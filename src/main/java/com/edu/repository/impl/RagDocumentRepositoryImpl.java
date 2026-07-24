@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Repository
 @RequiredArgsConstructor
@@ -44,6 +45,15 @@ public class RagDocumentRepositoryImpl implements RagDocumentRepository {
                 .eq(RagDocumentPO::getFileUrl, fileUrl)
                 .eq(RagDocumentPO::getDeleted, 0)
                 .last("limit 1"));
+    }
+
+    @Override
+    public List<RagDocumentPO> selectKnowledgeBaseDocuments(Long kbId) {
+        return ragDocumentMapper.selectList(new LambdaQueryWrapper<RagDocumentPO>()
+                .eq(RagDocumentPO::getKbId, kbId)
+                .eq(RagDocumentPO::getDeleted, 0)
+                .orderByDesc(RagDocumentPO::getCreateTime)
+                .orderByDesc(RagDocumentPO::getId));
     }
 
     @Override

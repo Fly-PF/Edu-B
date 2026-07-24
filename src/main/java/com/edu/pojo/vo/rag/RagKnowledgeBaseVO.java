@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 public class RagKnowledgeBaseVO {
     private Long id;
 
+    private Long userId;
+
     private String kbName;
 
     private String kbCover;

@@ -3,6 +3,8 @@ package com.edu.repository;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.edu.pojo.po.RagDocumentPO;
 
+import java.util.List;
+
 public interface RagDocumentRepository {
     int insertDocument(RagDocumentPO document);
 
@@ -11,6 +13,8 @@ public interface RagDocumentRepository {
     RagDocumentPO selectKnowledgeBaseDocumentById(Long kbId, Long documentId);
 
     RagDocumentPO selectKnowledgeBaseDocument(Long kbId, String fileUrl);
+
+    List<RagDocumentPO> selectKnowledgeBaseDocuments(Long kbId);
 
     int updateKnowledgeBaseDocument(Long kbId, Long documentId, String docName, String description);
 

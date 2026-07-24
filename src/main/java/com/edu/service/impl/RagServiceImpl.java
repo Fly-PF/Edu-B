@@ -10,10 +10,12 @@ import com.edu.common.properties.MinioProperties;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.po.RagDocumentPO;
+import com.edu.pojo.po.RagKbUserCollectionPO;
 import com.edu.pojo.po.RagKnowledgeBasePO;
 import com.edu.pojo.vo.rag.RagDocumentVO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
 import com.edu.repository.RagDocumentRepository;
+import com.edu.repository.RagKbUserCollectionRepository;
 import com.edu.repository.RagKnowledgeBaseRepository;
 import com.edu.repository.RagRepository;
 import com.edu.service.RagService;
@@ -82,6 +84,7 @@ public class RagServiceImpl implements RagService {
     private final MinioProperties minioProperties;
     private final RagDocumentRepository ragDocumentRepository;
     private final RagRepository ragRepository;
+    private final RagKbUserCollectionRepository ragKbUserCollectionRepository;
     private final RagKnowledgeBaseRepository ragKnowledgeBaseRepository;
     private final PdfTextExtractUtil pdfTextExtractUtil;
     private final PptTextExtractUtil pptTextExtractUtil;
@@ -103,6 +106,45 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
+    public List<RagKnowledgeBaseVO> listPublicKnowledgeBases(Integer kbType, Integer limit) {
+        validatePublicKnowledgeBaseQuery(kbType, limit);
+        return ragKnowledgeBaseRepository.selectPublicKnowledgeBases(kbType, limit)
+                .stream()
+                .map(this::toKnowledgeBaseVO)
+                .toList();
+    }
+
+    @Override
+    public PageResult<RagKnowledgeBaseVO> pagePublicKnowledgeBases(String keyword, Integer kbType, Integer pageNum,
+                                                                   Integer pageSize) {
+        validatePublicKnowledgeBasePageQuery(kbType);
+        PageQuery pageQuery = PageQuery.of(pageNum, pageSize);
+        IPage<RagKnowledgeBasePO> page = ragKnowledgeBaseRepository.selectPublicKnowledgeBasePage(
+                pageQuery.getPageNum(),
+                pageQuery.getPageSize(),
+                keyword,
+                kbType
+        );
+        return PageResult.of(page.getTotal(), pageQuery, page.getRecords().stream().map(this::toKnowledgeBaseVO).toList());
+    }
+
+    @Override
+    public PageResult<RagKnowledgeBaseVO> pageCollectedKnowledgeBases(String keyword, Integer kbType, Integer pageNum,
+                                                                     Integer pageSize) {
+        UserInfoDTO loginUser = getLoginUser();
+        validatePublicKnowledgeBasePageQuery(kbType);
+        PageQuery pageQuery = PageQuery.of(pageNum, pageSize);
+        IPage<RagKnowledgeBasePO> page = ragKnowledgeBaseRepository.selectCollectedKnowledgeBasePage(
+                pageQuery.getPageNum(),
+                pageQuery.getPageSize(),
+                loginUser.getUserId(),
+                keyword,
+                kbType
+        );
+        return PageResult.of(page.getTotal(), pageQuery, page.getRecords().stream().map(this::toKnowledgeBaseVO).toList());
+    }
+
+    @Override
     public RagKnowledgeBaseVO getMyKnowledgeBase(Long kbId) {
         UserInfoDTO loginUser = getLoginUser();
         if (kbId == null || kbId <= 0) {
@@ -115,6 +157,55 @@ public class RagServiceImpl implements RagService {
         }
 
         return toKnowledgeBaseVO(knowledgeBase);
+    }
+
+    @Override
+    public boolean isKnowledgeBaseCollected(Long kbId) {
+        UserInfoDTO loginUser = getLoginUser();
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+        if (knowledgeBase.getUserId() != null && knowledgeBase.getUserId().equals(loginUser.getUserId())) {
+            return false;
+        }
+        return ragKbUserCollectionRepository.existsActiveCollection(loginUser.getUserId(), kbId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void collectKnowledgeBase(Long kbId) {
+        UserInfoDTO loginUser = getLoginUser();
+        validatePublicKnowledgeBaseForCollection(kbId, loginUser.getUserId(), true);
+
+        RagKbUserCollectionPO collection = ragKbUserCollectionRepository.selectCollection(loginUser.getUserId(), kbId);
+        if (collection == null) {
+            RagKbUserCollectionPO newCollection = RagKbUserCollectionPO.builder()
+                    .userId(loginUser.getUserId())
+                    .kbId(kbId)
+                    .createTime(LocalDateTime.now())
+                    .deleted(0)
+                    .build();
+            if (ragKbUserCollectionRepository.insertCollection(newCollection) != 1) {
+                throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "收藏失败");
+            }
+            return;
+        }
+
+        if (collection.getDeleted() != null && collection.getDeleted() == 0) {
+            return;
+        }
+        if (ragKbUserCollectionRepository.restoreCollection(collection.getId()) != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "收藏失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelKnowledgeBaseCollection(Long kbId) {
+        UserInfoDTO loginUser = getLoginUser();
+        validatePublicKnowledgeBaseForCollection(kbId, loginUser.getUserId(), false);
+        ragKbUserCollectionRepository.cancelCollection(loginUser.getUserId(), kbId);
     }
 
     @Override
@@ -138,6 +229,18 @@ public class RagServiceImpl implements RagService {
         );
 
         return PageResult.of(page.getTotal(), pageQuery, page.getRecords().stream().map(this::toDocumentVO).toList());
+    }
+
+    @Override
+    public List<RagDocumentVO> listPublicKnowledgeBaseDocuments(Long kbId) {
+        validateKnowledgeBaseId(kbId);
+
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+
+        return ragDocumentRepository.selectKnowledgeBaseDocuments(kbId).stream().map(this::toDocumentVO).toList();
     }
 
     @Override
@@ -583,6 +686,17 @@ public class RagServiceImpl implements RagService {
         }
     }
 
+    private void validatePublicKnowledgeBaseForCollection(Long kbId, Long userId, boolean rejectOwner) {
+        validateKnowledgeBaseId(kbId);
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+        if (rejectOwner && knowledgeBase.getUserId() != null && knowledgeBase.getUserId().equals(userId)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "该知识库由您自己创建，无需收藏");
+        }
+    }
+
     private void validateKnowledgeBaseUpdate(String kbName, Integer kbType, Integer isPublic, Integer status) {
         if (!StringUtils.hasText(kbName)) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "知识库名称不能为空");
@@ -605,6 +719,21 @@ public class RagServiceImpl implements RagService {
         if (isPublic != null && isPublic != 0 && isPublic != 1) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "公开状态无效");
         }
+        if (kbType != null && (kbType < 1 || kbType > 4)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "知识库类型无效");
+        }
+    }
+
+    private void validatePublicKnowledgeBaseQuery(Integer kbType, Integer limit) {
+        if (kbType == null || kbType < 1 || kbType > 4) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "知识库类型无效");
+        }
+        if (limit == null || limit < 1 || limit > 12) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "查询数量无效");
+        }
+    }
+
+    private void validatePublicKnowledgeBasePageQuery(Integer kbType) {
         if (kbType != null && (kbType < 1 || kbType > 4)) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "知识库类型无效");
         }
@@ -676,6 +805,7 @@ public class RagServiceImpl implements RagService {
     private RagKnowledgeBaseVO toKnowledgeBaseVO(RagKnowledgeBasePO knowledgeBase) {
         return RagKnowledgeBaseVO.builder()
                 .id(knowledgeBase.getId())
+                .userId(knowledgeBase.getUserId())
                 .kbName(knowledgeBase.getKbName())
                 .kbCover(knowledgeBase.getKbCover())
                 .description(knowledgeBase.getDescription())

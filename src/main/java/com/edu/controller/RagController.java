@@ -5,14 +5,18 @@ import com.edu.common.Result;
 import com.edu.common.dto.RagTextChunkDTO;
 import com.edu.common.properties.MinioProperties;
 import com.edu.exception.BaseException;
+import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.po.RagDocumentPO;
+import com.edu.pojo.po.RagKnowledgeBasePO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
 import com.edu.pojo.vo.rag.RagDocumentVO;
 import com.edu.repository.RagDocumentRepository;
+import com.edu.repository.RagKnowledgeBaseRepository;
 import com.edu.service.RagService;
 import com.edu.util.MdTextExtractUtil;
 import com.edu.util.PdfTextExtractUtil;
 import com.edu.util.PptTextExtractUtil;
+import com.edu.util.SecurityUtil;
 import com.edu.util.TxtTextExtractUtil;
 import com.edu.util.WordHtmlPreviewUtil;
 import com.edu.util.WordTextExtractUtil;
@@ -67,6 +71,7 @@ public class RagController {
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
     private final RagDocumentRepository ragDocumentRepository;
+    private final RagKnowledgeBaseRepository ragKnowledgeBaseRepository;
     private final PdfTextExtractUtil pdfTextExtractUtil;
     private final PptTextExtractUtil pptTextExtractUtil;
     private final TxtTextExtractUtil txtTextExtractUtil;
@@ -83,10 +88,57 @@ public class RagController {
         return Result.setResult(HttpStatus.OK, "查询成功", ragService.listMyKnowledgeBases(keyword, status, isPublic, kbType));
     }
 
+    @Operation(summary = "查询公开知识库")
+    @GetMapping("/kb/public")
+    public Result<List<RagKnowledgeBaseVO>> listPublicKnowledgeBases(@RequestParam(value = "kb_type") Integer kbType,
+                                                                     @RequestParam(defaultValue = "4") Integer limit) {
+        return Result.setResult(HttpStatus.OK, "查询成功", ragService.listPublicKnowledgeBases(kbType, limit));
+    }
+
+    @Operation(summary = "分页查询公开知识库")
+    @GetMapping("/kb/public/page")
+    public Result<PageResult<RagKnowledgeBaseVO>> pagePublicKnowledgeBases(@RequestParam(required = false) String keyword,
+                                                                           @RequestParam(value = "kb_type", required = false) Integer kbType,
+                                                                           @RequestParam(required = false) Integer pageNum,
+                                                                           @RequestParam(required = false) Integer pageSize) {
+        return Result.setResult(HttpStatus.OK, "查询成功",
+                ragService.pagePublicKnowledgeBases(keyword, kbType, pageNum, pageSize));
+    }
+
+    @Operation(summary = "分页查询我的收藏知识库")
+    @GetMapping("/kb/collection/page")
+    public Result<PageResult<RagKnowledgeBaseVO>> pageCollectedKnowledgeBases(@RequestParam(required = false) String keyword,
+                                                                              @RequestParam(value = "kb_type", required = false) Integer kbType,
+                                                                              @RequestParam(required = false) Integer pageNum,
+                                                                              @RequestParam(required = false) Integer pageSize) {
+        return Result.setResult(HttpStatus.OK, "查询成功",
+                ragService.pageCollectedKnowledgeBases(keyword, kbType, pageNum, pageSize));
+    }
+
     @Operation(summary = "获取我的知识库详情")
     @GetMapping("/kb/my/detail")
     public Result<RagKnowledgeBaseVO> getMyKnowledgeBase(@RequestParam("kb_id") @NotNull @Min(1) Long kbId) {
         return Result.setResult(HttpStatus.OK, "查询成功", ragService.getMyKnowledgeBase(kbId));
+    }
+
+    @Operation(summary = "查询知识库收藏状态")
+    @GetMapping("/kb/collection/status")
+    public Result<Boolean> isKnowledgeBaseCollected(@RequestParam("kb_id") @NotNull @Min(1) Long kbId) {
+        return Result.setResult(HttpStatus.OK, "查询成功", ragService.isKnowledgeBaseCollected(kbId));
+    }
+
+    @Operation(summary = "收藏知识库")
+    @PostMapping("/kb/collection")
+    public Result<Void> collectKnowledgeBase(@RequestParam("kb_id") @NotNull @Min(1) Long kbId) {
+        ragService.collectKnowledgeBase(kbId);
+        return Result.setResult(HttpStatus.OK, "收藏成功");
+    }
+
+    @Operation(summary = "取消收藏知识库")
+    @PostMapping("/kb/collection/cancel")
+    public Result<Void> cancelKnowledgeBaseCollection(@RequestParam("kb_id") @NotNull @Min(1) Long kbId) {
+        ragService.cancelKnowledgeBaseCollection(kbId);
+        return Result.setResult(HttpStatus.OK, "取消收藏成功");
     }
 
     @Operation(summary = "分页查询知识库文档")
@@ -98,6 +150,12 @@ public class RagController {
                                                                         @RequestParam(value = "doc_name", required = false) String docName) {
         return Result.setResult(HttpStatus.OK, "查询成功",
                 ragService.pageKnowledgeBaseDocuments(kbId, pageNum, pageSize, docType, docName));
+    }
+
+    @Operation(summary = "查询公开知识库文档")
+    @GetMapping("/kb/public/documents")
+    public Result<List<RagDocumentVO>> listPublicKnowledgeBaseDocuments(@RequestParam("kb_id") @NotNull @Min(1) Long kbId) {
+        return Result.setResult(HttpStatus.OK, "查询成功", ragService.listPublicKnowledgeBaseDocuments(kbId));
     }
 
     @Operation(summary = "创建知识库")
@@ -314,7 +372,15 @@ public class RagController {
     }
 
     private RagDocumentPO validatePreviewDocument(Long kbId, String fileUrl) {
-        ragService.getMyKnowledgeBase(kbId);
+        UserInfoDTO loginUser = SecurityUtil.getLoginUser();
+        RagKnowledgeBasePO publicKnowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
+        RagKnowledgeBasePO myKnowledgeBase = loginUser == null || loginUser.getUserId() == null
+                ? null
+                : ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        if (publicKnowledgeBase == null && myKnowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+
         RagDocumentPO document = ragDocumentRepository.selectKnowledgeBaseDocument(kbId, fileUrl);
         if (document == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "文件不存在");

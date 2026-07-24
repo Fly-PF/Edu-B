@@ -1,6 +1,8 @@
 package com.edu.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.edu.mapper.RagKnowledgeBaseMapper;
 import com.edu.pojo.po.RagKnowledgeBasePO;
 import com.edu.repository.RagKnowledgeBaseRepository;
@@ -35,6 +37,15 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
     }
 
     @Override
+    public RagKnowledgeBasePO selectPublicKnowledgeBaseById(Long id) {
+        return ragKnowledgeBaseMapper.selectOne(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getId, id)
+                .eq(RagKnowledgeBasePO::getPublicFlag, 1)
+                .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getDeleted, 0));
+    }
+
+    @Override
     public int updateKnowledgeBase(RagKnowledgeBasePO knowledgeBase) {
         return ragKnowledgeBaseMapper.updateById(knowledgeBase);
     }
@@ -51,5 +62,48 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                 .like(StringUtils.hasText(keyword), RagKnowledgeBasePO::getKbName, keyword == null ? null : keyword.trim())
                 .orderByDesc(RagKnowledgeBasePO::getUpdateTime)
                 .orderByDesc(RagKnowledgeBasePO::getId));
+    }
+
+    @Override
+    public List<RagKnowledgeBasePO> selectPublicKnowledgeBases(Integer kbType, Integer limit) {
+        return ragKnowledgeBaseMapper.selectList(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getKbType, kbType)
+                .eq(RagKnowledgeBasePO::getPublicFlag, 1)
+                .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .orderByDesc(RagKnowledgeBasePO::getCreateTime)
+                .orderByDesc(RagKnowledgeBasePO::getId)
+                .last("LIMIT " + limit));
+    }
+
+    @Override
+    public IPage<RagKnowledgeBasePO> selectPublicKnowledgeBasePage(long pageNum, long pageSize, String keyword,
+                                                                  Integer kbType) {
+        LambdaQueryWrapper<RagKnowledgeBasePO> queryWrapper = new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getPublicFlag, 1)
+                .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .eq(kbType != null, RagKnowledgeBasePO::getKbType, kbType)
+                .like(StringUtils.hasText(keyword), RagKnowledgeBasePO::getKbName, keyword == null ? null : keyword.trim())
+                .orderByDesc(RagKnowledgeBasePO::getCreateTime)
+                .orderByDesc(RagKnowledgeBasePO::getId);
+        return ragKnowledgeBaseMapper.selectPage(new Page<>(pageNum, pageSize), queryWrapper);
+    }
+
+    @Override
+    public IPage<RagKnowledgeBasePO> selectCollectedKnowledgeBasePage(long pageNum, long pageSize, Long userId,
+                                                                     String keyword, Integer kbType) {
+        LambdaQueryWrapper<RagKnowledgeBasePO> queryWrapper = new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getPublicFlag, 1)
+                .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .ne(RagKnowledgeBasePO::getUserId, userId)
+                .eq(kbType != null, RagKnowledgeBasePO::getKbType, kbType)
+                .like(StringUtils.hasText(keyword), RagKnowledgeBasePO::getKbName, keyword == null ? null : keyword.trim())
+                .inSql(RagKnowledgeBasePO::getId,
+                        "select kb_id from rag_kb_user_collection where user_id = " + userId + " and deleted = 0")
+                .orderByDesc(RagKnowledgeBasePO::getCreateTime)
+                .orderByDesc(RagKnowledgeBasePO::getId);
+        return ragKnowledgeBaseMapper.selectPage(new Page<>(pageNum, pageSize), queryWrapper);
     }
 }
