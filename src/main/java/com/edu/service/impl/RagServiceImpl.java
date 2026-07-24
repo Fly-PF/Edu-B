@@ -1,5 +1,8 @@
 package com.edu.service.impl;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.edu.common.PageQuery;
+import com.edu.common.PageResult;
 import com.edu.common.dto.RagTextChunkDTO;
 import com.edu.common.dto.RagVectorChunkDTO;
 import com.edu.common.properties.AIModelProperties;
@@ -8,6 +11,7 @@ import com.edu.exception.BaseException;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.po.RagDocumentPO;
 import com.edu.pojo.po.RagKnowledgeBasePO;
+import com.edu.pojo.vo.rag.RagDocumentVO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
 import com.edu.repository.RagDocumentRepository;
 import com.edu.repository.RagKnowledgeBaseRepository;
@@ -34,6 +38,7 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,11 +53,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class RagServiceImpl implements RagService {
+    private static final String RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX = "rag_file_upload_extract_flag_";
+    private static final long RAG_FILE_UPLOAD_EXTRACT_FLAG_EXPIRE_MINUTES = 5L;
     private static final Set<String> COVER_ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final Set<String> COVER_ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
@@ -82,6 +90,7 @@ public class RagServiceImpl implements RagService {
     private final WordTextExtractUtil wordTextExtractUtil;
     private final ImageTextExtractUtil imageTextExtractUtil;
     private final TextEmbeddingUtil textEmbeddingUtil;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     public List<RagKnowledgeBaseVO> listMyKnowledgeBases(String keyword, Integer status, Integer isPublic, Integer kbType) {
@@ -106,6 +115,29 @@ public class RagServiceImpl implements RagService {
         }
 
         return toKnowledgeBaseVO(knowledgeBase);
+    }
+
+    @Override
+    public PageResult<RagDocumentVO> pageKnowledgeBaseDocuments(Long kbId, Integer pageNum, Integer pageSize,
+                                                                String docType, String docName) {
+        UserInfoDTO loginUser = getLoginUser();
+        validateKnowledgeBaseId(kbId);
+
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+
+        PageQuery pageQuery = PageQuery.of(pageNum, pageSize);
+        IPage<RagDocumentPO> page = ragDocumentRepository.selectKnowledgeBaseDocumentPage(
+                pageQuery.getPageNum(),
+                pageQuery.getPageSize(),
+                kbId,
+                docType,
+                docName
+        );
+
+        return PageResult.of(page.getTotal(), pageQuery, page.getRecords().stream().map(this::toDocumentVO).toList());
     }
 
     @Override
@@ -190,11 +222,69 @@ public class RagServiceImpl implements RagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void updateRagDocument(Long kbId, Long docId, String docName, String description) {
+        UserInfoDTO loginUser = getLoginUser();
+        validateKnowledgeBaseId(kbId);
+        validateDocumentUpdate(docId, docName);
+
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+
+        RagDocumentPO document = ragDocumentRepository.selectKnowledgeBaseDocumentById(kbId, docId);
+        if (document == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "文件不存在");
+        }
+        if (!getDocumentType(docName).equals(document.getDocType())) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "不允许修改文件后缀");
+        }
+
+        int updated = ragDocumentRepository.updateKnowledgeBaseDocument(
+                kbId, docId, docName.trim(), StringUtils.hasText(description) ? description.trim() : null);
+        if (updated != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "文件信息更新失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteRagDocument(Long kbId, Long docId) {
+        UserInfoDTO loginUser = getLoginUser();
+        validateKnowledgeBaseId(kbId);
+        validateDocumentId(docId);
+
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+
+        RagDocumentPO document = ragDocumentRepository.selectKnowledgeBaseDocumentById(kbId, docId);
+        if (document == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "文件不存在");
+        }
+
+        int updated = ragDocumentRepository.logicalDeleteKnowledgeBaseDocument(kbId, docId);
+        if (updated != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "文件删除失败");
+        }
+        ragRepository.logicalDeleteVectorChunks(kbId, docId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void uploadRagFile(HttpServletRequest request, MultipartFile file, String description, Long kbId) {
         validateUploadRequest(request, kbId, file);
-        validateKnowledgeBaseForUpload(kbId);
-        List<RagTextChunkDTO> textChunks = extractText(file);
         UserInfoDTO loginUser = getLoginUser();
+        validateKnowledgeBaseForUpload(kbId, loginUser.getUserId());
+        String extractFlagKey = RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX + loginUser.getUserId();
+        Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(
+                extractFlagKey, "1", RAG_FILE_UPLOAD_EXTRACT_FLAG_EXPIRE_MINUTES, TimeUnit.MINUTES);
+        if (!Boolean.TRUE.equals(locked)) {
+            throw new BaseException(HttpStatus.CONFLICT, "请等待上次文件解析结束！");
+        }
+
+        List<RagTextChunkDTO> textChunks = extractText(file);
         String objectName = buildObjectName(loginUser.getUserId(), file);
 
         uploadFile(file, objectName);
@@ -206,6 +296,7 @@ public class RagServiceImpl implements RagService {
             }
 
             ragRepository.insertVectorChunks(buildVectorChunks(textChunks, kbId, document.getId()));
+            stringRedisTemplate.delete(extractFlagKey);
         } catch (RuntimeException ex) {
             RuntimeException rollbackEx = rollbackUploadedRag(document, kbId, objectName);
             if (rollbackEx != null) {
@@ -393,8 +484,8 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private void validateKnowledgeBaseForUpload(Long kbId) {
-        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId);
+    private void validateKnowledgeBaseForUpload(Long kbId, Long userId) {
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, userId);
         if (knowledgeBase == null || knowledgeBase.getDeleted() == null || knowledgeBase.getDeleted() == 1) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "该知识库不存在！");
         }
@@ -519,6 +610,28 @@ public class RagServiceImpl implements RagService {
         }
     }
 
+    private void validateDocumentUpdate(Long docId, String docName) {
+        validateDocumentId(docId);
+        if (!StringUtils.hasText(docName)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "文件名称不能为空");
+        }
+        String trimmedDocName = docName.trim();
+        String fileName = StringUtils.getFilename(trimmedDocName);
+        if (!trimmedDocName.equals(fileName)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "文件名称不合法");
+        }
+        if (trimmedDocName.length() > 200) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "文件名称最多200个字符");
+        }
+        getDocumentType(trimmedDocName);
+    }
+
+    private void validateDocumentId(Long docId) {
+        if (docId == null || docId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "文件ID无效");
+        }
+    }
+
     private void validateCoverFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "封面图不能为空");
@@ -569,6 +682,19 @@ public class RagServiceImpl implements RagService {
                 .kbType(knowledgeBase.getKbType())
                 .publicFlag(knowledgeBase.getPublicFlag())
                 .status(knowledgeBase.getStatus())
+                .build();
+    }
+
+    private RagDocumentVO toDocumentVO(RagDocumentPO document) {
+        return RagDocumentVO.builder()
+                .id(document.getId())
+                .kbId(document.getKbId())
+                .docName(document.getDocName())
+                .docType(document.getDocType())
+                .description(document.getDescription())
+                .fileUrl(document.getFileUrl())
+                .createTime(document.getCreateTime())
+                .updateTime(document.getUpdateTime())
                 .build();
     }
 

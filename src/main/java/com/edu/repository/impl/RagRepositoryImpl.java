@@ -17,6 +17,9 @@ import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.service.utility.request.FlushReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
+import io.milvus.v2.service.vector.request.QueryReq;
+import io.milvus.v2.service.vector.request.UpsertReq;
+import io.milvus.v2.service.vector.response.QueryResp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,6 +32,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Repository
@@ -140,6 +144,48 @@ public class RagRepositoryImpl implements RagRepository {
         }
     }
 
+    @Override
+    public void logicalDeleteVectorChunks(Long kbId, Long docId) {
+        validateMilvusProperties();
+
+        MilvusClientV2 client = null;
+        try {
+            client = new MilvusClientV2(ConnectConfig.builder()
+                    .uri(milvusProperties.getEndpoint())
+                    .token(milvusProperties.getToken())
+                    .dbName(milvusProperties.getDatabaseName())
+                    .build());
+            String collectionName = milvusProperties.getRag().getCollectionName();
+            QueryResp queryResp = client.query(QueryReq.builder()
+                    .databaseName(milvusProperties.getDatabaseName())
+                    .collectionName(collectionName)
+                    .filter("kb_id == " + kbId + " and doc_id == " + docId + " and deleted == 0")
+                    .outputFields(List.of("id", "kb_id", "doc_id", "source_info", "content", "vector", "metadata", "create_time"))
+                    .limit(16384)
+                    .build());
+            List<JsonObject> data = buildLogicalDeleteMilvusRows(queryResp);
+            if (data.isEmpty()) {
+                return;
+            }
+
+            client.upsert(UpsertReq.builder()
+                    .databaseName(milvusProperties.getDatabaseName())
+                    .collectionName(collectionName)
+                    .data(data)
+                    .build());
+            client.flush(FlushReq.builder()
+                    .collectionNames(List.of(collectionName))
+                    .build());
+        } catch (Exception ex) {
+            log.error("逻辑删除RAG向量失败，kbId={}, docId={}", kbId, docId, ex);
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG向量删除失败");
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
+
     private JsonObject buildMilvusRow(RagVectorChunkDTO chunk, String createTime) {
         JsonObject row = new JsonObject();
         row.addProperty("kb_id", chunk.getKbId());
@@ -159,6 +205,62 @@ public class RagRepositoryImpl implements RagRepository {
             data.add(buildMilvusRow(chunk, createTime));
         }
         return data;
+    }
+
+    private List<JsonObject> buildLogicalDeleteMilvusRows(QueryResp queryResp) {
+        List<JsonObject> data = new ArrayList<>();
+        if (queryResp == null || queryResp.getQueryResults() == null) {
+            return data;
+        }
+
+        for (QueryResp.QueryResult result : queryResp.getQueryResults()) {
+            Map<String, Object> entity = result.getEntity();
+            if (entity == null || entity.get("id") == null) {
+                continue;
+            }
+            JsonObject row = new JsonObject();
+            addMilvusNumber(row, "id", entity.get("id"));
+            addMilvusNumber(row, "kb_id", entity.get("kb_id"));
+            addMilvusNumber(row, "doc_id", entity.get("doc_id"));
+            row.addProperty("source_info", String.valueOf(entity.getOrDefault("source_info", "")));
+            row.addProperty("content", String.valueOf(entity.getOrDefault("content", "")));
+            row.add("vector", buildJsonArray(entity.get("vector")));
+            row.add("metadata", buildJsonObject(entity.get("metadata")));
+            row.addProperty("create_time", String.valueOf(entity.get("create_time")));
+            row.addProperty("deleted", 1);
+            data.add(row);
+        }
+        return data;
+    }
+
+    private void addMilvusNumber(JsonObject row, String fieldName, Object value) {
+        if (value instanceof Number number) {
+            row.addProperty(fieldName, number);
+            return;
+        }
+        row.addProperty(fieldName, Long.parseLong(String.valueOf(value)));
+    }
+
+    private JsonArray buildJsonArray(Object value) {
+        JsonArray array = new JsonArray();
+        if (value instanceof JsonArray jsonArray) {
+            return jsonArray;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (item instanceof Number number) {
+                    array.add(number);
+                }
+            }
+        }
+        return array;
+    }
+
+    private JsonObject buildJsonObject(Object value) {
+        if (value instanceof JsonObject jsonObject) {
+            return jsonObject;
+        }
+        return new JsonObject();
     }
 
     private JsonArray buildVector(float[] vector) {

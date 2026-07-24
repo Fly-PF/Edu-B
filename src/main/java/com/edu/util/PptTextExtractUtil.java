@@ -55,6 +55,20 @@ public class PptTextExtractUtil extends AbstractTikaTextExtractUtil {
         }
     }
 
+    public List<byte[]> renderPages(InputStream inputStream) {
+        validateInputStream(inputStream, "PPT");
+        try (SlideShow<?, ?> slideShow = SlideShowFactory.create(inputStream)) {
+            List<byte[]> pages = new ArrayList<>();
+            for (Slide<?, ?> slide : slideShow.getSlides()) {
+                pages.add(renderSlideToPng(slideShow, slide));
+            }
+            return pages;
+        } catch (Exception ex) {
+            throwExtractException(log, "PPT", ex);
+            return List.of();
+        }
+    }
+
     private String extractSlideText(SlideShow<?, ?> slideShow, Slide<?, ?> slide, int pageNum, int totalPages)
             throws IOException {
         String slideText = buildSlideText(slide);

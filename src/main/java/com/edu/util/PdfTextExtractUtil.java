@@ -51,6 +51,21 @@ public class PdfTextExtractUtil extends AbstractTikaTextExtractUtil {
         }
     }
 
+    public List<byte[]> renderPages(InputStream inputStream) {
+        validateInputStream(inputStream, "PDF");
+        try (PDDocument document = Loader.loadPDF(toByteArray(inputStream))) {
+            List<byte[]> pages = new ArrayList<>();
+            PDFRenderer renderer = new PDFRenderer(document);
+            for (int pageNum = 1; pageNum <= document.getNumberOfPages(); pageNum++) {
+                pages.add(renderPageToPng(renderer, pageNum));
+            }
+            return pages;
+        } catch (Exception ex) {
+            throwExtractException(log, "PDF", ex);
+            return List.of();
+        }
+    }
+
     private String extractPageText(PDDocument document, PDFTextStripper stripper, PDFRenderer renderer, int pageNum)
             throws IOException {
         String text = stripper.getText(document);

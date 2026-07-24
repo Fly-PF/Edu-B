@@ -15,4 +15,6 @@ public interface RagRepository {
     void insertVectorChunks(List<RagVectorChunkDTO> chunks);
 
     void deleteVectorChunks(Long kbId, Long docId);
+
+    void logicalDeleteVectorChunks(Long kbId, Long docId);
 }
