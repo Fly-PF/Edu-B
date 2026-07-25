@@ -57,6 +57,16 @@ public class RagDocumentRepositoryImpl implements RagDocumentRepository {
     }
 
     @Override
+    public List<RagDocumentPO> selectDocumentsByIds(List<Long> documentIds) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            return List.of();
+        }
+        return ragDocumentMapper.selectList(new LambdaQueryWrapper<RagDocumentPO>()
+                .in(RagDocumentPO::getId, documentIds)
+                .eq(RagDocumentPO::getDeleted, 0));
+    }
+
+    @Override
     public int updateKnowledgeBaseDocument(Long kbId, Long documentId, String docName, String description) {
         return ragDocumentMapper.update(new LambdaUpdateWrapper<RagDocumentPO>()
                 .eq(RagDocumentPO::getId, documentId)

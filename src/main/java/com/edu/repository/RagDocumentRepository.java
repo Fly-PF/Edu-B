@@ -16,6 +16,8 @@ public interface RagDocumentRepository {
 
     List<RagDocumentPO> selectKnowledgeBaseDocuments(Long kbId);
 
+    List<RagDocumentPO> selectDocumentsByIds(List<Long> documentIds);
+
     int updateKnowledgeBaseDocument(Long kbId, Long documentId, String docName, String description);
 
     int logicalDeleteKnowledgeBaseDocument(Long kbId, Long documentId);

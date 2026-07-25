@@ -5,10 +5,15 @@ import com.edu.common.Result;
 import com.edu.common.dto.RagTextChunkDTO;
 import com.edu.common.properties.MinioProperties;
 import com.edu.exception.BaseException;
+import com.edu.pojo.dto.rag.RagChatRequest;
+import com.edu.pojo.dto.rag.RagChatSessionCreateRequest;
+import com.edu.pojo.dto.rag.RagChatSessionRenameRequest;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.po.RagDocumentPO;
 import com.edu.pojo.po.RagKnowledgeBasePO;
+import com.edu.pojo.vo.rag.RagChatMessageVO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
+import com.edu.pojo.vo.rag.RagChatSessionVO;
 import com.edu.pojo.vo.rag.RagDocumentVO;
 import com.edu.repository.RagDocumentRepository;
 import com.edu.repository.RagKnowledgeBaseRepository;
@@ -35,17 +40,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import reactor.core.publisher.Flux;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -139,6 +140,50 @@ public class RagController {
     public Result<Void> cancelKnowledgeBaseCollection(@RequestParam("kb_id") @NotNull @Min(1) Long kbId) {
         ragService.cancelKnowledgeBaseCollection(kbId);
         return Result.setResult(HttpStatus.OK, "取消收藏成功");
+    }
+
+    @Operation(summary = "分页查询RAG聊天会话")
+    @GetMapping("/chat/session/page")
+    public Result<PageResult<RagChatSessionVO>> pageChatSessions(@RequestParam(required = false) Integer pageNum,
+                                                                 @RequestParam(required = false) Integer pageSize) {
+        return Result.setResult(HttpStatus.OK, "查询成功", ragService.pageChatSessions(pageNum, pageSize));
+    }
+
+    @Operation(summary = "查询RAG聊天会话知识库")
+    @GetMapping("/chat/session/kb")
+    public Result<List<RagKnowledgeBaseVO>> listChatSessionKnowledgeBases(@RequestParam("session_id") @NotNull @Min(1) Long sessionId) {
+        return Result.setResult(HttpStatus.OK, "查询成功", ragService.listChatSessionKnowledgeBases(sessionId));
+    }
+
+    @Operation(summary = "创建RAG聊天会话")
+    @PostMapping("/chat/session")
+    public Result<RagChatSessionVO> createChatSession(@Valid @RequestBody RagChatSessionCreateRequest request) {
+        return Result.setResult(HttpStatus.CREATED, "创建成功", ragService.createChatSession(request));
+    }
+
+    @Operation(summary = "重命名RAG聊天会话")
+    @PostMapping("/chat/session/rename")
+    public Result<RagChatSessionVO> renameChatSession(@Valid @RequestBody RagChatSessionRenameRequest request) {
+        return Result.setResult(HttpStatus.OK, "重命名成功", ragService.renameChatSession(request));
+    }
+
+    @Operation(summary = "删除RAG聊天会话")
+    @PostMapping("/chat/session/delete")
+    public Result<Void> deleteChatSession(@RequestParam("session_id") @NotNull @Min(1) Long sessionId) {
+        ragService.deleteChatSession(sessionId);
+        return Result.setResult(HttpStatus.OK, "删除成功");
+    }
+
+    @Operation(summary = "查询RAG聊天历史消息")
+    @GetMapping("/chat/message")
+    public Result<List<RagChatMessageVO>> listChatMessages(@RequestParam("session_id") @NotNull @Min(1) Long sessionId) {
+        return Result.setResult(HttpStatus.OK, "查询成功", ragService.listChatMessages(sessionId));
+    }
+
+    @Operation(summary = "RAG流式聊天")
+    @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
+    public Flux<ServerSentEvent<RagChatMessageVO>> chat(@Valid @RequestBody RagChatRequest request) {
+        return ragService.chat(request);
     }
 
     @Operation(summary = "分页查询知识库文档")
@@ -302,32 +347,6 @@ public class RagController {
         return Result.setResult(HttpStatus.OK, "删除成功");
     }
 
-    @Operation(summary = "测试AI聊天接口")
-    @PostMapping(value = "/chat/test")
-    public Result<String> chatTest(@Valid @RequestParam String message,
-                                   @RequestParam(required = false) List<MultipartFile> files) {
-        return Result.setResult(HttpStatus.OK, "success", ragService.chatTest(message, files));
-    }
-
-    @Operation(summary = "测试OpenAI向量接口")
-    @PostMapping("/embedding/test")
-    public Result<float[]> embeddingTest(@Valid @RequestBody ChatTestReq request) {
-        return Result.setResult(HttpStatus.OK, "success", ragService.embeddingTest(request.getMessage()));
-    }
-
-    public static class ChatTestReq {
-        @NotBlank(message = "message 不能为空")
-        private String message;
-
-        public String getMessage() {
-            return message;
-        }
-
-        public void setMessage(String message) {
-            this.message = message;
-        }
-    }
-
     private void validateCoverObjectName(String objectName) {
         if (!StringUtils.hasText(objectName) || objectName.contains("..")) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "图片地址错误");
@@ -443,3 +462,4 @@ public class RagController {
     public record RagFilePreviewImagesVO(String fileName, String extension, List<RagFilePreviewImageVO> pages) {
     }
 }
+

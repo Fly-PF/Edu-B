@@ -14,12 +14,16 @@ public interface RagKnowledgeBaseRepository {
 
     RagKnowledgeBasePO selectPublicKnowledgeBaseById(Long id);
 
+    RagKnowledgeBasePO selectSelectableKnowledgeBase(Long userId, Long id);
+
     int updateKnowledgeBase(RagKnowledgeBasePO knowledgeBase);
 
     List<RagKnowledgeBasePO> selectUserKnowledgeBases(Long userId, String keyword, Integer status, Integer isPublic,
                                                       Integer kbType);
 
     List<RagKnowledgeBasePO> selectPublicKnowledgeBases(Integer kbType, Integer limit);
+
+    List<RagKnowledgeBasePO> selectSessionKnowledgeBases(Long sessionId);
 
     IPage<RagKnowledgeBasePO> selectPublicKnowledgeBasePage(long pageNum, long pageSize, String keyword, Integer kbType);
 

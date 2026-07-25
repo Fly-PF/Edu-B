@@ -41,15 +41,19 @@ edu:
       api-key: sk-041315448c034a198794b90818510324
       base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
       chat-model:
+        max-history-message-count: 20
         model-type: textmodel
         model-name: qwen3.7-plus
       text-model:
+        max-history-message-count: 20
         model-type: textmodel
         model-name: qwen3.7-plus
       multi-model:
+        max-history-message-count: 20
         model-type: multimodel
         model-name: qwen3.5-omni-flash
       embedding-model:
+        max-history-message-count: 20
         model-type: textembedmodel
         model-name: qwen3.7-text-embedding
 

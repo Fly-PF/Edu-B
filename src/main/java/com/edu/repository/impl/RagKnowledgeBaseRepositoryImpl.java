@@ -46,6 +46,20 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
     }
 
     @Override
+    public RagKnowledgeBasePO selectSelectableKnowledgeBase(Long userId, Long id) {
+        return ragKnowledgeBaseMapper.selectOne(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getId, id)
+                .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .and(wrapper -> wrapper
+                        .eq(RagKnowledgeBasePO::getUserId, userId)
+                        .or(publicWrapper -> publicWrapper
+                                .eq(RagKnowledgeBasePO::getPublicFlag, 1)
+                                .inSql(RagKnowledgeBasePO::getId,
+                                        "select kb_id from rag_kb_user_collection where user_id = " + userId + " and deleted = 0"))));
+    }
+
+    @Override
     public int updateKnowledgeBase(RagKnowledgeBasePO knowledgeBase) {
         return ragKnowledgeBaseMapper.updateById(knowledgeBase);
     }
@@ -74,6 +88,16 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                 .orderByDesc(RagKnowledgeBasePO::getCreateTime)
                 .orderByDesc(RagKnowledgeBasePO::getId)
                 .last("LIMIT " + limit));
+    }
+
+    @Override
+    public List<RagKnowledgeBasePO> selectSessionKnowledgeBases(Long sessionId) {
+        return ragKnowledgeBaseMapper.selectList(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .inSql(RagKnowledgeBasePO::getId,
+                        "select kb_id from rag_session_kb_ref where session_id = " + sessionId + " and deleted = 0")
+                .orderByDesc(RagKnowledgeBasePO::getCreateTime)
+                .orderByDesc(RagKnowledgeBasePO::getId));
     }
 
     @Override

@@ -51,6 +51,7 @@ public class AIModelProperties {
     public static class Model {
         private ModelType modelType;
         private String modelName;
+        private Integer maxHistoryMessageCount;
     }
 
 }

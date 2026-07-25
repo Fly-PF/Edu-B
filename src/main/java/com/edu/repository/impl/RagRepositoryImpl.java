@@ -14,12 +14,16 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
+import io.milvus.v2.common.IndexParam;
 import io.milvus.v2.service.utility.request.FlushReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import io.milvus.v2.service.vector.request.QueryReq;
+import io.milvus.v2.service.vector.request.SearchReq;
 import io.milvus.v2.service.vector.request.UpsertReq;
+import io.milvus.v2.service.vector.request.data.FloatVec;
 import io.milvus.v2.service.vector.response.QueryResp;
+import io.milvus.v2.service.vector.response.SearchResp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -33,6 +37,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Repository
@@ -186,6 +191,42 @@ public class RagRepositoryImpl implements RagRepository {
         }
     }
 
+    @Override
+    public List<RagSearchChunk> searchVectorChunks(float[] vector, List<Long> kbIds) {
+        validateMilvusProperties();
+        if (vector == null || kbIds == null || kbIds.isEmpty()) {
+            return List.of();
+        }
+
+        IndexParam.MetricType metricType = resolveMetricType();
+        MilvusClientV2 client = null;
+        try {
+            client = new MilvusClientV2(ConnectConfig.builder()
+                    .uri(milvusProperties.getEndpoint())
+                    .token(milvusProperties.getToken())
+                    .dbName(milvusProperties.getDatabaseName())
+                    .build());
+            SearchResp searchResp = client.search(SearchReq.builder()
+                    .databaseName(milvusProperties.getDatabaseName())
+                    .collectionName(milvusProperties.getRag().getCollectionName())
+                    .data(List.of(new FloatVec(vector)))
+                    .annsField("vector")
+                    .filter("deleted == 0 and kb_id in [" + kbIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + "]")
+                    .outputFields(List.of("kb_id", "doc_id", "source_info", "content"))
+                    .topK(defaultTopK())
+                    .metricType(metricType)
+                    .build());
+            return buildSearchChunks(searchResp, metricType);
+        } catch (Exception ex) {
+            log.error("Milvus检索RAG片段失败", ex);
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG检索失败");
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
+
     private JsonObject buildMilvusRow(RagVectorChunkDTO chunk, String createTime) {
         JsonObject row = new JsonObject();
         row.addProperty("kb_id", chunk.getKbId());
@@ -231,6 +272,85 @@ public class RagRepositoryImpl implements RagRepository {
             data.add(row);
         }
         return data;
+    }
+
+    private List<RagSearchChunk> buildSearchChunks(SearchResp searchResp, IndexParam.MetricType metricType) {
+        List<RagSearchChunk> chunks = new ArrayList<>();
+        if (searchResp == null || searchResp.getSearchResults() == null) {
+            return chunks;
+        }
+
+        for (Object item : searchResp.getSearchResults()) {
+            if (item instanceof SearchResp.SearchResult result) {
+                appendSearchChunk(chunks, result, metricType);
+                continue;
+            }
+            if (item instanceof List<?> resultList) {
+                for (Object resultItem : resultList) {
+                    if (resultItem instanceof SearchResp.SearchResult result) {
+                        appendSearchChunk(chunks, result, metricType);
+                    }
+                }
+            }
+        }
+        return chunks;
+    }
+
+    private void appendSearchChunk(List<RagSearchChunk> chunks, SearchResp.SearchResult result, IndexParam.MetricType metricType) {
+        if (result == null || !matchScore(result.getScore(), metricType)) {
+            return;
+        }
+        Map<String, Object> entity = result.getEntity();
+        if (entity == null) {
+            return;
+        }
+        Long kbId = toLong(entity.get("kb_id"));
+        Long docId = toLong(entity.get("doc_id"));
+        if (kbId == null || docId == null) {
+            return;
+        }
+        chunks.add(new RagSearchChunk(kbId, docId,
+                String.valueOf(entity.getOrDefault("source_info", "")),
+                String.valueOf(entity.getOrDefault("content", "")),
+                result.getScore()));
+    }
+
+    private boolean matchScore(Float score, IndexParam.MetricType metricType) {
+        if (score == null) {
+            return false;
+        }
+        Double threshold = milvusProperties.getRag().getScoreThreshold();
+        if (threshold == null) {
+            return true;
+        }
+        return metricType == IndexParam.MetricType.L2 ? score <= threshold : score >= threshold;
+    }
+
+    private int defaultTopK() {
+        Integer topK = milvusProperties.getRag().getTopK();
+        return topK == null || topK < 1 ? 5 : topK;
+    }
+
+    private IndexParam.MetricType resolveMetricType() {
+        String metricType = milvusProperties.getRag().getVector().getMetricType();
+        if (!StringUtils.hasText(metricType)) {
+            return IndexParam.MetricType.COSINE;
+        }
+        return IndexParam.MetricType.valueOf(metricType.toUpperCase());
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private void addMilvusNumber(JsonObject row, String fieldName, Object value) {
