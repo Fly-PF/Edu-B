@@ -46,6 +46,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -72,6 +73,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -88,6 +90,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class RagServiceImpl implements RagService {
     private static final String RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX = "rag_file_upload_extract_flag_";
@@ -424,12 +427,14 @@ public class RagServiceImpl implements RagService {
             RewriteSelection selection = resolveRewriteSelection(messages, rewriteMessageId);
             String baseMessageId = UUID.randomUUID().toString();
             List<RagChatMessagePO> history = trimHistoryMessages(messages.subList(0, selection.targetIndex()));
-            RagChatContext context = buildChatContext(userId, sessionId, message, history);
             List<RagChatImageVO> qaImgs = parseQaImages(selection.targetMessage().getMetadata());
-            List<ChatImageInput> imageInputs = isMultiModel() ? loadChatImageInputs(qaImgs) : List.of();
+            List<ChatImageInput> imageInputs = loadChatImageInputs(qaImgs);
+            String imageText = extractChatImageText(imageInputs);
+            RagChatContext context = buildChatContext(userId, sessionId, message, imageText, history);
             StringBuilder answer = new StringBuilder();
             OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
-            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(), imageInputs))
+            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(),
+                            isMultiModel() ? imageInputs : List.of()))
                     .flatMap(response -> {
                         String chunk = extractChatText(response);
                         if (!StringUtils.hasText(chunk)) {
@@ -465,11 +470,13 @@ public class RagServiceImpl implements RagService {
         String assistantMessageId = baseMessageId + "-assistant";
         try {
             List<RagChatImageVO> qaImgs = uploadChatImages(userId, imgFiles);
-            RagChatContext context = buildChatContext(userId, sessionId, message);
-            List<ChatImageInput> imageInputs = isMultiModel() ? buildChatImageInputs(imgFiles, qaImgs) : List.of();
+            List<ChatImageInput> imageInputs = buildChatImageInputs(imgFiles, qaImgs);
+            String imageText = extractChatImageText(imageInputs);
+            RagChatContext context = buildChatContext(userId, sessionId, message, imageText);
             StringBuilder answer = new StringBuilder();
             OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
-            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(), imageInputs))
+            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(),
+                            isMultiModel() ? imageInputs : List.of()))
                     .flatMap(response -> {
                         String chunk = extractChatText(response);
                         if (!StringUtils.hasText(chunk)) {
@@ -643,6 +650,31 @@ public class RagServiceImpl implements RagService {
         return inputs;
     }
 
+    private String extractChatImageText(List<ChatImageInput> imageInputs) {
+        if (imageInputs == null || imageInputs.isEmpty()) {
+            return "";
+        }
+        StringBuilder imageText = new StringBuilder();
+        for (int i = 0; i < imageInputs.size(); i++) {
+            ChatImageInput imageInput = imageInputs.get(i);
+            try {
+                String content = imageTextExtractUtil.extract(new ByteArrayInputStream(imageInput.bytes()), false, "");
+                if (!StringUtils.hasText(content)) {
+                    continue;
+                }
+                if (!imageText.isEmpty()) {
+                    imageText.append("\n");
+                }
+                imageText.append("图片 ").append(i + 1).append("（")
+                        .append(imageInput.image().getFileName()).append("）：\n")
+                        .append(content.trim());
+            } catch (Exception ex) {
+                log.warn("聊天图片文字提取失败，已跳过: {}", imageInput.image().getFileName(), ex);
+            }
+        }
+        return imageText.toString();
+    }
+
     private Prompt buildChatPrompt(String text, List<ChatImageInput> imageInputs) {
         if (imageInputs == null || imageInputs.isEmpty()) {
             return new Prompt(text);
@@ -698,11 +730,21 @@ public class RagServiceImpl implements RagService {
     }
 
     private RagChatContext buildChatContext(Long userId, Long sessionId, String message) {
-        return buildChatContext(userId, sessionId, message,
+        return buildChatContext(userId, sessionId, message, "",
+                ragChatMessageRepository.selectLatestSessionMessages(sessionId, maxHistoryMessageCount()));
+    }
+
+    private RagChatContext buildChatContext(Long userId, Long sessionId, String message, String imageText) {
+        return buildChatContext(userId, sessionId, message, imageText,
                 ragChatMessageRepository.selectLatestSessionMessages(sessionId, maxHistoryMessageCount()));
     }
 
     private RagChatContext buildChatContext(Long userId, Long sessionId, String message,
+                                            List<RagChatMessagePO> historyMessages) {
+        return buildChatContext(userId, sessionId, message, "", historyMessages);
+    }
+
+    private RagChatContext buildChatContext(Long userId, Long sessionId, String message, String imageText,
                                             List<RagChatMessagePO> historyMessages) {
         List<RagKnowledgeBasePO> knowledgeBases = ragKnowledgeBaseRepository.selectSessionKnowledgeBases(sessionId)
                 .stream()
@@ -710,16 +752,21 @@ public class RagServiceImpl implements RagService {
                 .filter(kb -> kb.getUserId() != null && kb.getUserId().equals(userId) || kb.getPublicFlag() != null && kb.getPublicFlag() == 1)
                 .toList();
         if (knowledgeBases.isEmpty()) {
-            return new RagChatContext(buildPrompt(message, List.of(), List.of()), List.of());
+            return new RagChatContext(buildPrompt(message, imageText, List.of(), List.of()), List.of());
         }
 
         List<Long> kbIds = knowledgeBases.stream().map(RagKnowledgeBasePO::getId).toList();
-        List<RagRepository.RagSearchChunk> chunks = ragRepository.searchVectorChunks(textEmbeddingUtil.embed(message).getVector(), kbIds);
+        List<RagRepository.RagSearchChunk> chunks = ragRepository.searchVectorChunks(
+                textEmbeddingUtil.embed(buildRetrievalQuestion(message, imageText)).getVector(), kbIds);
         List<RagChatDocRefVO> docRefs = buildDocRefs(chunks, knowledgeBases);
 
         List<RagChatMessagePO> history = historyMessages == null ? new ArrayList<>() : new ArrayList<>(historyMessages);
         history.sort(Comparator.comparing(RagChatMessagePO::getCreateTime).thenComparing(RagChatMessagePO::getId));
-        return new RagChatContext(buildPrompt(message, history, chunks), docRefs);
+        return new RagChatContext(buildPrompt(message, imageText, history, chunks), docRefs);
+    }
+
+    private String buildRetrievalQuestion(String message, String imageText) {
+        return StringUtils.hasText(imageText) ? imageText + "\n" + message : message;
     }
 
     private List<RagChatMessagePO> trimHistoryMessages(List<RagChatMessagePO> messages) {
@@ -765,10 +812,13 @@ public class RagServiceImpl implements RagService {
         return refs;
     }
 
-    private String buildPrompt(String question, List<RagChatMessagePO> history, List<RagRepository.RagSearchChunk> chunks) {
+    private String buildPrompt(String question, String imageText, List<RagChatMessagePO> history,
+                               List<RagRepository.RagSearchChunk> chunks) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("你是XP-Edu平台的知识库问答助手，请基于历史对话和检索依据回答用户问题。\n");
         prompt.append("如果检索依据不足，请说明依据不足，不要编造。\n\n");
+        prompt.append("请使用合法Markdown组织回答，使内容清晰、美观、易于阅读。仅在内容确有需要时使用恰当的标题、列表、表格、加粗、代码块和公式；避免为了排版堆砌标题、重复用户问题或加入无关说明。段落保持简洁，复杂内容优先分点或分步骤表达。\n");
+        prompt.append("标题必须独占一行，#号后必须有空格，且标题前后各保留一个空行。段落之间必须保留一个空行；不要将标题、列表、分隔线或公式与正文连续拼接。行间公式必须独占一行，并在前后保留空行；分隔线---也必须独占一行。\n\n");
         if (history != null && !history.isEmpty()) {
             prompt.append("历史对话：\n");
             for (RagChatMessagePO item : history) {
@@ -783,6 +833,9 @@ public class RagServiceImpl implements RagService {
                 prompt.append(i + 1).append(". ").append(chunk.content()).append("\n");
             }
             prompt.append("\n");
+        }
+        if (StringUtils.hasText(imageText)) {
+            prompt.append("图片识别文字：\n").append(imageText).append("\n\n");
         }
         prompt.append("当前用户问题：").append(question);
         return prompt.toString();
