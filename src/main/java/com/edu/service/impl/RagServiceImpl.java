@@ -499,7 +499,7 @@ public class RagServiceImpl implements RagService {
                 .messageId(baseMessageId + "-assistant")
                 .role("assistant")
                 .content(answer)
-                .metadata(toJson(docRefs))
+                .metadata(toDocRefInfoMetadata(docRefs))
                 .docRefCount(docRefs.size())
                 .createTime(now)
                 .deleted(0)
@@ -722,7 +722,7 @@ public class RagServiceImpl implements RagService {
                 .messageId(baseMessageId + "-assistant")
                 .role("assistant")
                 .content(answer)
-                .metadata(toJson(docRefs))
+                .metadata(toDocRefInfoMetadata(docRefs))
                 .docRefCount(docRefs.size())
                 .createTime(now)
                 .deleted(0)
@@ -790,12 +790,22 @@ public class RagServiceImpl implements RagService {
         }
     }
 
+    private String toDocRefInfoMetadata(List<RagChatDocRefVO> docRefs) {
+        return toJson(Map.of("docRefInfo", toJson(docRefs)));
+    }
+
     private List<RagChatDocRefVO> parseDocRefs(String metadata) {
         if (!StringUtils.hasText(metadata)) {
             return List.of();
         }
         try {
-            List<RagChatDocRefVO> refs = objectMapper.readValue(metadata, new TypeReference<List<RagChatDocRefVO>>() {
+            Map<String, String> metadataMap = objectMapper.readValue(metadata, new TypeReference<Map<String, String>>() {
+            });
+            String docRefInfo = metadataMap.get("docRefInfo");
+            if (!StringUtils.hasText(docRefInfo)) {
+                return List.of();
+            }
+            List<RagChatDocRefVO> refs = objectMapper.readValue(docRefInfo, new TypeReference<List<RagChatDocRefVO>>() {
             });
             return refs == null ? List.of() : refs;
         } catch (Exception ex) {

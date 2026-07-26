@@ -42,8 +42,8 @@ edu:
       base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
       chat-model:
         max-history-message-count: 20
-        model-type: textmodel
-        model-name: qwen3.7-plus
+        model-type: multimodel
+        model-name: qwen3.5-omni-flash
       text-model:
         max-history-message-count: 20
         model-type: textmodel
