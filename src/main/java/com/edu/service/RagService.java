@@ -60,9 +60,9 @@ public interface RagService {
     void updateKnowledgeBase(Long kbId, String kbName, String description, Integer kbType, Integer isPublic,
                              Integer status, MultipartFile file);
 
-    void updateRagDocument(Long kbId, Long docId, String docName, String description);
+    void updateKnowledgeBaseDocument(Long kbId, Long docId, String docName, String description);
 
-    void deleteRagDocument(Long kbId, Long docId);
+    void deleteKnowledgeBaseDocument(Long kbId, Long docId);
 
-    void uploadRagFile(HttpServletRequest request, MultipartFile file, String description, Long kbId);
+    void uploadKnowledgeBaseDocument(HttpServletRequest request, MultipartFile file, String description, Long kbId);
 }

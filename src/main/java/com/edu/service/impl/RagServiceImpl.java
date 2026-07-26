@@ -1256,7 +1256,7 @@ public class RagServiceImpl implements RagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateRagDocument(Long kbId, Long docId, String docName, String description) {
+    public void updateKnowledgeBaseDocument(Long kbId, Long docId, String docName, String description) {
         UserInfoDTO loginUser = getLoginUser();
         validateKnowledgeBaseId(kbId);
         validateDocumentUpdate(docId, docName);
@@ -1283,7 +1283,7 @@ public class RagServiceImpl implements RagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteRagDocument(Long kbId, Long docId) {
+    public void deleteKnowledgeBaseDocument(Long kbId, Long docId) {
         UserInfoDTO loginUser = getLoginUser();
         validateKnowledgeBaseId(kbId);
         validateDocumentId(docId);
@@ -1307,7 +1307,7 @@ public class RagServiceImpl implements RagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void uploadRagFile(HttpServletRequest request, MultipartFile file, String description, Long kbId) {
+    public void uploadKnowledgeBaseDocument(HttpServletRequest request, MultipartFile file, String description, Long kbId) {
         validateUploadRequest(request, kbId, file);
         UserInfoDTO loginUser = getLoginUser();
         validateKnowledgeBaseForUpload(kbId, loginUser.getUserId());
