@@ -27,7 +27,6 @@ import org.springframework.util.StringUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -64,10 +63,7 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
     private List<RagTextChunkDTO> extractDocx(byte[] fileBytes) {
         try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(fileBytes))) {
             List<WordElement> elements = collectDocxElements(document.getBodyElements());
-            WordExtractResult result = buildWordExtractResult("DOCX", elements);
-            List<RagTextChunkDTO> chunks = logWordSegments("DOCX", result.parts());
-            logImages(result.imageLogs());
-            return chunks;
+            return logWordSegments("DOCX", buildWordTextParts(elements));
         } catch (OLE2NotOfficeXmlFileException ex) {
             log.warn("The DOCX file content is OLE2, using DOC extractor instead");
             return extractDoc(fileBytes);
@@ -80,10 +76,7 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
     private List<RagTextChunkDTO> extractDoc(byte[] fileBytes) {
         try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(fileBytes))) {
             List<WordElement> elements = collectDocElements(document);
-            WordExtractResult result = buildWordExtractResult("DOC", elements);
-            List<RagTextChunkDTO> chunks = logWordSegments("DOC", result.parts());
-            logImages(result.imageLogs());
-            return chunks;
+            return logWordSegments("DOC", buildWordTextParts(elements));
         } catch (OfficeXmlFileException ex) {
             log.warn("The DOC file content is OOXML, using DOCX extractor instead");
             return extractDocx(fileBytes);
@@ -157,22 +150,15 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
         return elements;
     }
 
-    private WordExtractResult buildWordExtractResult(String fileTypeName, List<WordElement> elements) throws Exception {
+    private List<WordTextPart> buildWordTextParts(List<WordElement> elements) {
         List<WordTextPart> parts = new ArrayList<>();
-        List<WordImageLog> imageLogs = new ArrayList<>();
-        int imageNum = 1;
         for (int i = 0; i < elements.size(); i++) {
-            imageNum = appendWordElement(fileTypeName, elements, i, parts, imageLogs, imageNum);
+            appendWordElement(elements, i, parts);
         }
-        return new WordExtractResult(parts, imageLogs);
+        return parts;
     }
 
-    private int appendWordElement(String fileTypeName,
-                                  List<WordElement> elements,
-                                  int index,
-                                  List<WordTextPart> parts,
-                                  List<WordImageLog> imageLogs,
-                                  int imageNum) throws Exception {
+    private void appendWordElement(List<WordElement> elements, int index, List<WordTextPart> parts) {
         WordElement element = elements.get(index);
         String paragraphText = normalizeText(element.text());
         if (StringUtils.hasText(paragraphText)) {
@@ -181,12 +167,7 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
         for (WordImage image : element.images()) {
             parts.add(new WordTextPart(imageTextExtractUtil.extract(new ByteArrayInputStream(image.data()), false),
                     index + 1, true));
-            Path imagePath = saveExtractedImage(image.data(), imageNum, image.extension());
-            imageLogs.add(new WordImageLog(fileTypeName, imageNum, imagePath, "paragraph " + (index + 1),
-                    previousText(elements, index), nextText(elements, index)));
-            imageNum++;
         }
-        return imageNum;
     }
 
     private List<RagTextChunkDTO> logWordSegments(String fileTypeName, List<WordTextPart> parts) {
@@ -260,31 +241,6 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
         return total;
     }
 
-    private void logImages(List<WordImageLog> imageLogs) {
-        for (WordImageLog imageLog : imageLogs) {
-            logImage(log, imageLog.fileTypeName(), imageLog.imageNum(), imageLog.imagePath(), imageLog.location(),
-                    imageLog.previousText(), imageLog.nextText());
-        }
-    }
-
-    private String previousText(List<WordElement> elements, int index) {
-        for (int i = index - 1; i >= 0; i--) {
-            if (StringUtils.hasText(elements.get(i).text())) {
-                return elements.get(i).text();
-            }
-        }
-        return "";
-    }
-
-    private String nextText(List<WordElement> elements, int index) {
-        for (int i = index + 1; i < elements.size(); i++) {
-            if (StringUtils.hasText(elements.get(i).text())) {
-                return elements.get(i).text();
-            }
-        }
-        return "";
-    }
-
     private byte[] toByteArray(InputStream inputStream) throws Exception {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         inputStream.transferTo(outputStream);
@@ -302,13 +258,6 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
     }
 
     private record WordTextPart(String text, int paragraphIndex, boolean image) {
-    }
-
-    private record WordExtractResult(List<WordTextPart> parts, List<WordImageLog> imageLogs) {
-    }
-
-    private record WordImageLog(String fileTypeName, int imageNum, Path imagePath, String location,
-                                String previousText, String nextText) {
     }
 
     private record TextSegment(int startParagraph, int endParagraph, String text) {

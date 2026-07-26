@@ -10,8 +10,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -127,22 +125,6 @@ public abstract class AbstractTikaTextExtractUtil {
     protected void throwExtractException(Logger log, String fileTypeName, Exception ex) {
         log.error("Failed to extract {} text", fileTypeName, ex);
         throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, fileTypeName + " text extraction failed");
-    }
-
-    protected Path saveExtractedImage(byte[] imageData, int imageNum, String extension) throws IOException {
-        Path imageDir = Path.of(System.getProperty("user.dir")).resolve("uploads").resolve("test");
-        Files.createDirectories(imageDir);
-        String normalizedExtension = StringUtils.hasText(extension) ? extension : "bin";
-        Path imagePath = imageDir.resolve("图" + imageNum + "." + normalizedExtension);
-        Files.write(imagePath, imageData);
-        return imagePath;
-    }
-
-    protected void logImage(Logger log, String fileTypeName, int imageNum, Path imagePath, String location,
-                            String previousText, String nextText) {
-        log.info("Extracted {} image {}, path: {}, location: {}, previous paragraph: {}, next paragraph: {}",
-                fileTypeName, imageNum, imagePath.toAbsolutePath(), location,
-                normalizeText(previousText), normalizeText(nextText));
     }
 
     private List<TextSegment> buildTextSegments(List<String> paragraphs) {
