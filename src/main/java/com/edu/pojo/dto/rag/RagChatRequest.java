@@ -6,9 +6,11 @@ import lombok.Data;
 
 @Data
 public class RagChatRequest {
-    @NotNull(message = "sessionId 不能为空")
+    @NotNull(message = "sessionId 涓嶈兘涓虹┖")
     private Long sessionId;
 
-    @NotBlank(message = "message 不能为空")
+    @NotBlank(message = "message 涓嶈兘涓虹┖")
     private String message;
+
+    private String rewriteMessageId;
 }

@@ -389,16 +389,60 @@ public class RagServiceImpl implements RagService {
         UserInfoDTO loginUser = getLoginUser();
         Long sessionId = request == null ? null : request.getSessionId();
         String message = request == null ? null : request.getMessage();
+        String rewriteMessageId = request == null ? null : request.getRewriteMessageId();
         validateChatRequest(sessionId, message, loginUser.getUserId());
 
-        String baseMessageId = UUID.randomUUID().toString();
-        return streamChat(loginUser.getUserId(), sessionId, message.trim(), baseMessageId);
+        if (StringUtils.hasText(rewriteMessageId)) {
+            return streamRewriteChat(loginUser.getUserId(), sessionId, message.trim(), rewriteMessageId.trim());
+        }
+        return streamChat(loginUser.getUserId(), sessionId, message.trim(), UUID.randomUUID().toString());
+    }
+
+    private Flux<ServerSentEvent<RagChatMessageVO>> streamRewriteChat(Long userId, Long sessionId, String message,
+                                                                      String rewriteMessageId) {
+        try {
+            List<RagChatMessagePO> messages = ragChatMessageRepository.selectSessionMessages(sessionId);
+            RewriteSelection selection = resolveRewriteSelection(messages, rewriteMessageId);
+            String baseMessageId = UUID.randomUUID().toString();
+            List<RagChatMessagePO> history = trimHistoryMessages(messages.subList(0, selection.targetIndex()));
+            RagChatContext context = buildChatContext(userId, sessionId, message, history);
+            StringBuilder answer = new StringBuilder();
+            OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
+            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(new Prompt(context.prompt()))
+                    .flatMap(response -> {
+                        String chunk = extractChatText(response);
+                        if (!StringUtils.hasText(chunk)) {
+                            return Flux.empty();
+                        }
+                        answer.append(chunk);
+                        return Flux.just(ServerSentEvent.builder(buildSseFrame("stream", sessionId, baseMessageId + "-assistant",
+                                "assistant", chunk, null, context.docRefs().size(), context.docRefs(), null)).build());
+                    });
+
+            Mono<ServerSentEvent<RagChatMessageVO>> doneFrame = Mono.fromCallable(() -> {
+                RagChatMessageVO frame = new TransactionTemplate(transactionManager).execute(status ->
+                        rewriteChatMessages(selection, baseMessageId, message, answer.toString(), context.docRefs()));
+                if (frame == null) {
+                    throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "娑堟伅淇濆瓨澶辫触");
+                }
+                frame.setStatus("done");
+                return ServerSentEvent.builder(frame).build();
+            });
+
+            return Flux.concat(streamFrames, doneFrame)
+                    .onErrorResume(ex -> Flux.just(ServerSentEvent.builder(buildSseFrame("error", sessionId,
+                            baseMessageId + "-assistant", "assistant", ex instanceof BaseException ? ex.getMessage() : "AI鍥炵瓟鐢熸垚澶辫触",
+                            null, 0, List.of(), null)).build()));
+        } catch (Exception ex) {
+            return Flux.just(ServerSentEvent.builder(buildSseFrame("error", sessionId, UUID.randomUUID().toString() + "-assistant", "assistant",
+                    ex instanceof BaseException ? ex.getMessage() : "AI鍥炵瓟鐢熸垚澶辫触", null, 0, List.of(), null)).build());
+        }
     }
 
     private Flux<ServerSentEvent<RagChatMessageVO>> streamChat(Long userId, Long sessionId, String message, String baseMessageId) {
         String assistantMessageId = baseMessageId + "-assistant";
         try {
-            RagChatContext context = buildChatContext(userId, sessionId, message, assistantMessageId);
+            RagChatContext context = buildChatContext(userId, sessionId, message);
             StringBuilder answer = new StringBuilder();
             OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
             Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(new Prompt(context.prompt()))
@@ -515,7 +559,13 @@ public class RagServiceImpl implements RagService {
                 .toList();
     }
 
-    private RagChatContext buildChatContext(Long userId, Long sessionId, String message, String assistantMessageId) {
+    private RagChatContext buildChatContext(Long userId, Long sessionId, String message) {
+        return buildChatContext(userId, sessionId, message,
+                ragChatMessageRepository.selectLatestSessionMessages(sessionId, maxHistoryMessageCount()));
+    }
+
+    private RagChatContext buildChatContext(Long userId, Long sessionId, String message,
+                                            List<RagChatMessagePO> historyMessages) {
         List<RagKnowledgeBasePO> knowledgeBases = ragKnowledgeBaseRepository.selectSessionKnowledgeBases(sessionId)
                 .stream()
                 .filter(kb -> kb.getStatus() != null && kb.getStatus() == 1)
@@ -529,10 +579,21 @@ public class RagServiceImpl implements RagService {
         List<RagRepository.RagSearchChunk> chunks = ragRepository.searchVectorChunks(textEmbeddingUtil.embed(message).getVector(), kbIds);
         List<RagChatDocRefVO> docRefs = buildDocRefs(chunks, knowledgeBases);
 
-        List<RagChatMessagePO> history = ragChatMessageRepository.selectLatestSessionMessages(sessionId, maxHistoryMessageCount());
-        history = new ArrayList<>(history);
+        List<RagChatMessagePO> history = historyMessages == null ? new ArrayList<>() : new ArrayList<>(historyMessages);
         history.sort(Comparator.comparing(RagChatMessagePO::getCreateTime).thenComparing(RagChatMessagePO::getId));
         return new RagChatContext(buildPrompt(message, history, chunks), docRefs);
+    }
+
+    private List<RagChatMessagePO> trimHistoryMessages(List<RagChatMessagePO> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return List.of();
+        }
+
+        int maxCount = maxHistoryMessageCount();
+        if (messages.size() <= maxCount) {
+            return new ArrayList<>(messages);
+        }
+        return new ArrayList<>(messages.subList(messages.size() - maxCount, messages.size()));
     }
 
     private List<RagChatDocRefVO> buildDocRefs(List<RagRepository.RagSearchChunk> chunks, List<RagKnowledgeBasePO> knowledgeBases) {
@@ -595,6 +656,98 @@ public class RagServiceImpl implements RagService {
                 ? null
                 : provider.getChatModel().getMaxHistoryMessageCount();
         return count == null || count < 1 ? 10 : count;
+    }
+
+    private RewriteSelection resolveRewriteSelection(List<RagChatMessagePO> messages, String rewriteMessageId) {
+        if (messages == null || messages.isEmpty()) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "仅能修改最新一条提问消息");
+        }
+
+        int targetIndex = -1;
+        for (int i = 0; i < messages.size(); i++) {
+            RagChatMessagePO message = messages.get(i);
+            if (message != null && rewriteMessageId.equals(message.getMessageId())) {
+                targetIndex = i;
+                if (!"user".equals(message.getRole())) {
+                    throw new BaseException(HttpStatus.BAD_REQUEST, "仅能修改最新一条提问消息");
+                }
+                break;
+            }
+        }
+        if (targetIndex < 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "消息不存在");
+        }
+
+        int latestUserIndex = -1;
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            RagChatMessagePO message = messages.get(i);
+            if (message != null && "user".equals(message.getRole())) {
+                latestUserIndex = i;
+                break;
+            }
+        }
+        if (targetIndex != latestUserIndex) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "仅能修改最新一条提问消息");
+        }
+
+        return new RewriteSelection(messages.get(targetIndex), targetIndex, new ArrayList<>(messages.subList(targetIndex + 1, messages.size())));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public RagChatMessageVO rewriteChatMessages(RewriteSelection selection, String baseMessageId, String question,
+                                                String answer, List<RagChatDocRefVO> docRefs) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> tailMessageIds = selection.tailMessages().stream()
+                .map(RagChatMessagePO::getId)
+                .filter(id -> id != null)
+                .toList();
+        if (!tailMessageIds.isEmpty()) {
+            ragMsgDocRefRepository.logicalDeleteMsgDocRefs(tailMessageIds);
+            ragChatMessageRepository.logicalDeleteMessagesByIds(tailMessageIds);
+        }
+
+        RagChatMessagePO userMessage = selection.targetMessage();
+        userMessage.setMessageId(baseMessageId + "-user");
+        userMessage.setContent(question);
+        userMessage.setMetadata(null);
+        userMessage.setDocRefCount(0);
+        userMessage.setCreateTime(now);
+        userMessage.setDeleted(0);
+        if (ragChatMessageRepository.updateMessage(userMessage) != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "消息保存失败");
+        }
+
+        RagChatMessagePO assistantMessage = RagChatMessagePO.builder()
+                .sessionId(userMessage.getSessionId())
+                .messageId(baseMessageId + "-assistant")
+                .role("assistant")
+                .content(answer)
+                .metadata(toJson(docRefs))
+                .docRefCount(docRefs.size())
+                .createTime(now)
+                .deleted(0)
+                .build();
+        if (ragChatMessageRepository.insertMessage(assistantMessage) != 1 || assistantMessage.getId() == null) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "消息保存失败");
+        }
+
+        for (RagChatDocRefVO docRef : docRefs) {
+            Long docId = docRef.getDocId();
+            if (docId == null) {
+                continue;
+            }
+            RagMsgDocRefPO msgDocRef = RagMsgDocRefPO.builder()
+                    .msgId(assistantMessage.getId())
+                    .docId(docId)
+                    .createTime(now)
+                    .deleted(0)
+                    .build();
+            if (ragMsgDocRefRepository.insertMsgDocRef(msgDocRef) != 1) {
+                throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "引用文档保存失败");
+            }
+        }
+
+        return toChatMessageVO(assistantMessage, docRefs);
     }
 
     private AIModelProperties.Provider getChatProvider() {
@@ -752,6 +905,9 @@ public class RagServiceImpl implements RagService {
     }
 
     private record RagChatContext(String prompt, List<RagChatDocRefVO> docRefs) {
+    }
+
+    private record RewriteSelection(RagChatMessagePO targetMessage, int targetIndex, List<RagChatMessagePO> tailMessages) {
     }
 
     @Override

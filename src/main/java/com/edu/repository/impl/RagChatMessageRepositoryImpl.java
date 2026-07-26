@@ -21,6 +21,11 @@ public class RagChatMessageRepositoryImpl implements RagChatMessageRepository {
     }
 
     @Override
+    public int updateMessage(RagChatMessagePO message) {
+        return ragChatMessageMapper.updateById(message);
+    }
+
+    @Override
     public List<RagChatMessagePO> selectSessionMessages(Long sessionId) {
         return ragChatMessageMapper.selectList(new LambdaQueryWrapper<RagChatMessagePO>()
                 .eq(RagChatMessagePO::getSessionId, sessionId)
@@ -54,6 +59,17 @@ public class RagChatMessageRepositoryImpl implements RagChatMessageRepository {
     public int logicalDeleteSessionMessages(Long sessionId) {
         return ragChatMessageMapper.update(new LambdaUpdateWrapper<RagChatMessagePO>()
                 .eq(RagChatMessagePO::getSessionId, sessionId)
+                .eq(RagChatMessagePO::getDeleted, 0)
+                .set(RagChatMessagePO::getDeleted, 1));
+    }
+
+    @Override
+    public int logicalDeleteMessagesByIds(List<Long> messageIds) {
+        if (messageIds == null || messageIds.isEmpty()) {
+            return 0;
+        }
+        return ragChatMessageMapper.update(new LambdaUpdateWrapper<RagChatMessagePO>()
+                .in(RagChatMessagePO::getId, messageIds)
                 .eq(RagChatMessagePO::getDeleted, 0)
                 .set(RagChatMessagePO::getDeleted, 1));
     }
