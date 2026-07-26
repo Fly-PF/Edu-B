@@ -507,7 +507,12 @@ public class RagServiceImpl implements RagService {
         if (messages == null || messages.isEmpty()) {
             return List.of();
         }
-        return messages.stream().map(message -> toChatMessageVO(message, parseDocRefs(message.getMetadata()))).toList();
+        Long sessionId = messages.get(0).getSessionId();
+        Map<Long, List<RagChatDocRefVO>> docRefsByMessageId = buildChatDocRefsByMessageId(sessionId, messages);
+        return messages.stream()
+                .map(message -> toChatMessageVO(message,
+                        docRefsByMessageId.getOrDefault(message.getId(), parseDocRefs(message.getMetadata()))))
+                .toList();
     }
 
     private RagChatContext buildChatContext(Long userId, Long sessionId, String message, String assistantMessageId) {
@@ -555,6 +560,7 @@ public class RagServiceImpl implements RagService {
                     .docName(document.getDocName())
                     .contentSource(entry.getValue().sourceInfo())
                     .fileUrl(document.getFileUrl())
+                    .description(document.getDescription())
                     .build());
         }
         return refs;
@@ -656,6 +662,89 @@ public class RagServiceImpl implements RagService {
                 .docRefInfo(docRefs)
                 .createTime(formatDateTime(message.getCreateTime()))
                 .build();
+    }
+
+    private Map<Long, List<RagChatDocRefVO>> buildChatDocRefsByMessageId(Long sessionId, List<RagChatMessagePO> messages) {
+        if (sessionId == null || messages == null || messages.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Long> messageIds = messages.stream()
+                .map(RagChatMessagePO::getId)
+                .filter(id -> id != null)
+                .toList();
+        if (messageIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<RagMsgDocRefPO> msgDocRefs = ragMsgDocRefRepository.selectMsgDocRefs(messageIds);
+        if (msgDocRefs.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, List<RagMsgDocRefPO>> msgDocRefMap = new LinkedHashMap<>();
+        Set<Long> docIds = new LinkedHashSet<>();
+        for (RagMsgDocRefPO msgDocRef : msgDocRefs) {
+            if (msgDocRef == null || msgDocRef.getMsgId() == null) {
+                continue;
+            }
+            msgDocRefMap.computeIfAbsent(msgDocRef.getMsgId(), key -> new ArrayList<>()).add(msgDocRef);
+            if (msgDocRef.getDocId() != null) {
+                docIds.add(msgDocRef.getDocId());
+            }
+        }
+
+        Map<Long, RagDocumentPO> docMap = new HashMap<>();
+        if (!docIds.isEmpty()) {
+            ragDocumentRepository.selectDocumentsByIds(new ArrayList<>(docIds))
+                    .forEach(document -> docMap.put(document.getId(), document));
+        }
+
+        Map<Long, RagKnowledgeBasePO> kbMap = new HashMap<>();
+        ragKnowledgeBaseRepository.selectSessionKnowledgeBases(sessionId)
+                .forEach(kb -> kbMap.put(kb.getId(), kb));
+
+        Map<Long, List<RagChatDocRefVO>> docRefsByMessageId = new HashMap<>();
+        for (RagChatMessagePO message : messages) {
+            if (message == null || message.getId() == null) {
+                continue;
+            }
+            docRefsByMessageId.put(message.getId(),
+                    mergeDocRefs(parseDocRefs(message.getMetadata()), msgDocRefMap.get(message.getId()), docMap, kbMap));
+        }
+        return docRefsByMessageId;
+    }
+
+    private List<RagChatDocRefVO> mergeDocRefs(List<RagChatDocRefVO> parsedDocRefs, List<RagMsgDocRefPO> msgDocRefs,
+                                               Map<Long, RagDocumentPO> docMap, Map<Long, RagKnowledgeBasePO> kbMap) {
+        int size = Math.max(parsedDocRefs == null ? 0 : parsedDocRefs.size(), msgDocRefs == null ? 0 : msgDocRefs.size());
+        if (size <= 0) {
+            return List.of();
+        }
+
+        List<RagChatDocRefVO> docRefs = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            RagChatDocRefVO parsedDocRef = parsedDocRefs != null && i < parsedDocRefs.size() ? parsedDocRefs.get(i) : null;
+            RagMsgDocRefPO msgDocRef = msgDocRefs != null && i < msgDocRefs.size() ? msgDocRefs.get(i) : null;
+            RagDocumentPO document = msgDocRef == null ? null : docMap.get(msgDocRef.getDocId());
+            RagKnowledgeBasePO knowledgeBase = document == null ? null : kbMap.get(document.getKbId());
+
+            docRefs.add(RagChatDocRefVO.builder()
+                    .docId(document == null ? null : document.getId())
+                    .kbName(parsedDocRef != null && StringUtils.hasText(parsedDocRef.getKbName())
+                            ? parsedDocRef.getKbName()
+                            : knowledgeBase == null ? null : knowledgeBase.getKbName())
+                    .docName(parsedDocRef != null && StringUtils.hasText(parsedDocRef.getDocName())
+                            ? parsedDocRef.getDocName()
+                            : document == null ? null : document.getDocName())
+                    .contentSource(parsedDocRef == null ? null : parsedDocRef.getContentSource())
+                    .fileUrl(parsedDocRef != null && StringUtils.hasText(parsedDocRef.getFileUrl())
+                            ? parsedDocRef.getFileUrl()
+                            : document == null ? null : document.getFileUrl())
+                    .description(document == null ? null : document.getDescription())
+                    .build());
+        }
+        return docRefs;
     }
 
     private String formatDateTime(LocalDateTime dateTime) {

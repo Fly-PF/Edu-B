@@ -21,4 +21,6 @@ public class RagChatDocRefVO {
     private String contentSource;
 
     private String fileUrl;
+
+    private String description;
 }
