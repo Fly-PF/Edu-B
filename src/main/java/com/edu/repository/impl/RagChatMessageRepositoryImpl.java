@@ -74,4 +74,9 @@ public class RagChatMessageRepositoryImpl implements RagChatMessageRepository {
                 .set(RagChatMessagePO::getDeleted, 1));
     }
 
+    @Override
+    public boolean existsActiveQaImage(String objectName) {
+        return ragChatMessageMapper.existsActiveQaImage(objectName);
+    }
+
 }

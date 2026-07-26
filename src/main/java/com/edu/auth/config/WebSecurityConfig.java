@@ -70,6 +70,7 @@ public class WebSecurityConfig {
                         "/api/user/register/student",
                         "/api/user/avatar/image",
                         "/api/rag/kb/cover",
+                        "/api/rag/chat/image",
                         "/api/rag/files/preview",
                         "/api/course-files/**"
                 ).permitAll()

@@ -20,6 +20,7 @@ import com.edu.pojo.po.RagKnowledgeBasePO;
 import com.edu.pojo.po.RagMsgDocRefPO;
 import com.edu.pojo.po.RagSessionKbRefPO;
 import com.edu.pojo.vo.rag.RagChatDocRefVO;
+import com.edu.pojo.vo.rag.RagChatImageVO;
 import com.edu.pojo.vo.rag.RagChatMessageVO;
 import com.edu.pojo.vo.rag.RagChatSessionVO;
 import com.edu.pojo.vo.rag.RagDocumentVO;
@@ -41,13 +42,18 @@ import com.edu.util.TextEmbeddingUtil;
 import com.edu.util.TxtTextExtractUtil;
 import com.edu.util.WordTextExtractUtil;
 import io.micrometer.observation.ObservationRegistry;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -55,11 +61,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import org.springframework.util.MimeTypeUtils;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -86,6 +94,8 @@ public class RagServiceImpl implements RagService {
     private static final long RAG_FILE_UPLOAD_EXTRACT_FLAG_EXPIRE_MINUTES = 5L;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<String> COVER_ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
+    private static final Set<String> CHAT_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
+    private static final long MAX_CHAT_IMAGE_SIZE = DataSize.ofMegabytes(12).toBytes();
     private static final Set<String> COVER_ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "webp", "pdf", "ppt", "pptx", "txt", "md", "docx", "doc");
@@ -104,6 +114,7 @@ public class RagServiceImpl implements RagService {
 
     private final AIModelProperties aiModelProperties;
     private final MinioProperties minioProperties;
+    private final MinioClient minioClient;
     private final RagDocumentRepository ragDocumentRepository;
     private final RagChatMessageRepository ragChatMessageRepository;
     private final RagChatSessionRepository ragChatSessionRepository;
@@ -385,6 +396,11 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
+    public boolean existsChatImage(String objectName) {
+        return ragChatMessageRepository.existsActiveQaImage(objectName);
+    }
+
+    @Override
     public Flux<ServerSentEvent<RagChatMessageVO>> chat(RagChatRequest request) {
         UserInfoDTO loginUser = getLoginUser();
         Long sessionId = request == null ? null : request.getSessionId();
@@ -393,9 +409,12 @@ public class RagServiceImpl implements RagService {
         validateChatRequest(sessionId, message, loginUser.getUserId());
 
         if (StringUtils.hasText(rewriteMessageId)) {
+            if (request.getImgFiles() != null && !request.getImgFiles().isEmpty()) {
+                return chatErrorFrame(sessionId, "编辑重发不能修改图片");
+            }
             return streamRewriteChat(loginUser.getUserId(), sessionId, message.trim(), rewriteMessageId.trim());
         }
-        return streamChat(loginUser.getUserId(), sessionId, message.trim(), UUID.randomUUID().toString());
+        return streamChat(loginUser.getUserId(), sessionId, message.trim(), UUID.randomUUID().toString(), request.getImgFiles());
     }
 
     private Flux<ServerSentEvent<RagChatMessageVO>> streamRewriteChat(Long userId, Long sessionId, String message,
@@ -406,9 +425,11 @@ public class RagServiceImpl implements RagService {
             String baseMessageId = UUID.randomUUID().toString();
             List<RagChatMessagePO> history = trimHistoryMessages(messages.subList(0, selection.targetIndex()));
             RagChatContext context = buildChatContext(userId, sessionId, message, history);
+            List<RagChatImageVO> qaImgs = parseQaImages(selection.targetMessage().getMetadata());
+            List<ChatImageInput> imageInputs = isMultiModel() ? loadChatImageInputs(qaImgs) : List.of();
             StringBuilder answer = new StringBuilder();
             OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
-            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(new Prompt(context.prompt()))
+            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(), imageInputs))
                     .flatMap(response -> {
                         String chunk = extractChatText(response);
                         if (!StringUtils.hasText(chunk)) {
@@ -421,7 +442,7 @@ public class RagServiceImpl implements RagService {
 
             Mono<ServerSentEvent<RagChatMessageVO>> doneFrame = Mono.fromCallable(() -> {
                 RagChatMessageVO frame = new TransactionTemplate(transactionManager).execute(status ->
-                        rewriteChatMessages(selection, baseMessageId, message, answer.toString(), context.docRefs()));
+                        rewriteChatMessages(selection, baseMessageId, message, answer.toString(), context.docRefs(), qaImgs));
                 if (frame == null) {
                     throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "娑堟伅淇濆瓨澶辫触");
                 }
@@ -439,13 +460,16 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private Flux<ServerSentEvent<RagChatMessageVO>> streamChat(Long userId, Long sessionId, String message, String baseMessageId) {
+    private Flux<ServerSentEvent<RagChatMessageVO>> streamChat(Long userId, Long sessionId, String message, String baseMessageId,
+                                                                List<MultipartFile> imgFiles) {
         String assistantMessageId = baseMessageId + "-assistant";
         try {
+            List<RagChatImageVO> qaImgs = uploadChatImages(userId, imgFiles);
             RagChatContext context = buildChatContext(userId, sessionId, message);
+            List<ChatImageInput> imageInputs = isMultiModel() ? buildChatImageInputs(imgFiles, qaImgs) : List.of();
             StringBuilder answer = new StringBuilder();
             OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
-            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(new Prompt(context.prompt()))
+            Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(), imageInputs))
                     .flatMap(response -> {
                         String chunk = extractChatText(response);
                         if (!StringUtils.hasText(chunk)) {
@@ -458,7 +482,7 @@ public class RagServiceImpl implements RagService {
 
             Mono<ServerSentEvent<RagChatMessageVO>> doneFrame = Mono.fromCallable(() -> {
                 RagChatMessageVO frame = new TransactionTemplate(transactionManager).execute(status ->
-                        saveChatMessages(sessionId, baseMessageId, message, answer.toString(), context.docRefs()));
+                        saveChatMessages(sessionId, baseMessageId, message, answer.toString(), context.docRefs(), qaImgs));
                 if (frame == null) {
                     throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "消息保存失败");
                 }
@@ -478,14 +502,14 @@ public class RagServiceImpl implements RagService {
 
     @Transactional(rollbackFor = Exception.class)
     public RagChatMessageVO saveChatMessages(Long sessionId, String baseMessageId, String question, String answer,
-                                             List<RagChatDocRefVO> docRefs) {
+                                             List<RagChatDocRefVO> docRefs, List<RagChatImageVO> qaImgs) {
         LocalDateTime now = LocalDateTime.now();
         RagChatMessagePO userMessage = RagChatMessagePO.builder()
                 .sessionId(sessionId)
                 .messageId(baseMessageId + "-user")
                 .role("user")
                 .content(question)
-                .metadata(null)
+                .metadata(toQaImgMetadata(qaImgs))
                 .docRefCount(0)
                 .createTime(now)
                 .deleted(0)
@@ -535,6 +559,120 @@ public class RagServiceImpl implements RagService {
             throw new BaseException(HttpStatus.BAD_REQUEST, "消息不能为空");
         }
         validateChatSession(sessionId, userId);
+    }
+
+    private Flux<ServerSentEvent<RagChatMessageVO>> chatErrorFrame(Long sessionId, String message) {
+        return Flux.just(ServerSentEvent.builder(buildSseFrame("error", sessionId,
+                UUID.randomUUID().toString() + "-assistant", "assistant", message, null, 0, List.of(), null)).build());
+    }
+
+    private List<RagChatImageVO> uploadChatImages(Long userId, List<MultipartFile> imgFiles) {
+        if (imgFiles == null || imgFiles.isEmpty()) {
+            return List.of();
+        }
+        if (imgFiles.size() > 10) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "一次最多上传10张图片");
+        }
+        for (MultipartFile file : imgFiles) {
+            validateChatImage(file);
+        }
+        List<RagChatImageVO> images = new ArrayList<>(imgFiles.size());
+        for (MultipartFile file : imgFiles) {
+            String extension = getExtension(file.getOriginalFilename());
+            String objectName = buildChatImageObjectName(userId, extension);
+            ragRepository.uploadObject(file, objectName);
+            images.add(new RagChatImageVO(objectName, file.getOriginalFilename()));
+        }
+        return images;
+    }
+
+    private void validateChatImage(MultipartFile file) {
+        if (file == null || file.isEmpty() || !StringUtils.hasText(file.getOriginalFilename())) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "图片不能为空");
+        }
+        String extension = getExtension(file.getOriginalFilename());
+        if (!CHAT_IMAGE_EXTENSIONS.contains(extension)
+                || !ALLOWED_CONTENT_TYPES.getOrDefault(extension, Set.of()).contains(file.getContentType())) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "仅支持jpg、jpeg、png、webp格式图片");
+        }
+        if (file.getSize() > MAX_CHAT_IMAGE_SIZE) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "单张图片不能超过12MB");
+        }
+    }
+
+    private String buildChatImageObjectName(Long userId, String extension) {
+        String baseUrl = minioProperties.getRag().getRagFilesBaseUrl();
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG文件路径未配置");
+        }
+        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+        return normalizedBaseUrl + userId + "/" + extension + "/" + UUID.randomUUID() + "." + extension;
+    }
+
+    private List<ChatImageInput> buildChatImageInputs(List<MultipartFile> imgFiles, List<RagChatImageVO> qaImgs) {
+        if (imgFiles == null || imgFiles.isEmpty()) {
+            return List.of();
+        }
+        List<ChatImageInput> inputs = new ArrayList<>(imgFiles.size());
+        for (int i = 0; i < imgFiles.size(); i++) {
+            try {
+                MultipartFile file = imgFiles.get(i);
+                inputs.add(new ChatImageInput(qaImgs.get(i), file.getBytes(), file.getContentType()));
+            } catch (Exception ex) {
+                throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "图片读取失败");
+            }
+        }
+        return inputs;
+    }
+
+    private List<ChatImageInput> loadChatImageInputs(List<RagChatImageVO> qaImgs) {
+        if (qaImgs == null || qaImgs.isEmpty()) {
+            return List.of();
+        }
+        List<ChatImageInput> inputs = new ArrayList<>(qaImgs.size());
+        for (RagChatImageVO image : qaImgs) {
+            try (InputStream inputStream = minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(getBucketName())
+                    .object(image.getFileUrl())
+                    .build())) {
+                inputs.add(new ChatImageInput(image, inputStream.readAllBytes(), getImageContentType(image.getFileUrl())));
+            } catch (Exception ex) {
+                throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "图片读取失败");
+            }
+        }
+        return inputs;
+    }
+
+    private Prompt buildChatPrompt(String text, List<ChatImageInput> imageInputs) {
+        if (imageInputs == null || imageInputs.isEmpty()) {
+            return new Prompt(text);
+        }
+        List<Media> media = imageInputs.stream()
+                .map(image -> new Media(MimeTypeUtils.parseMimeType(image.contentType()), new ByteArrayResource(image.bytes())))
+                .toList();
+        return new Prompt(UserMessage.builder().text(text).media(media).build());
+    }
+
+    private boolean isMultiModel() {
+        AIModelProperties.Provider provider = getChatProvider();
+        return provider.getChatModel().getModelType() == AIModelProperties.ModelType.MultiModel;
+    }
+
+    private String getImageContentType(String objectName) {
+        return switch (getExtension(objectName)) {
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            case "webp" -> "image/webp";
+            default -> throw new BaseException(HttpStatus.BAD_REQUEST, "图片格式不支持");
+        };
+    }
+
+    private String getBucketName() {
+        String bucketName = minioProperties.getBuckerName();
+        if (!StringUtils.hasText(bucketName)) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "MinIO存储桶未配置");
+        }
+        return bucketName;
     }
 
     private void validateChatSession(Long sessionId, Long userId) {
@@ -695,7 +833,7 @@ public class RagServiceImpl implements RagService {
 
     @Transactional(rollbackFor = Exception.class)
     public RagChatMessageVO rewriteChatMessages(RewriteSelection selection, String baseMessageId, String question,
-                                                String answer, List<RagChatDocRefVO> docRefs) {
+                                                String answer, List<RagChatDocRefVO> docRefs, List<RagChatImageVO> qaImgs) {
         LocalDateTime now = LocalDateTime.now();
         List<Long> tailMessageIds = selection.tailMessages().stream()
                 .map(RagChatMessagePO::getId)
@@ -709,7 +847,7 @@ public class RagServiceImpl implements RagService {
         RagChatMessagePO userMessage = selection.targetMessage();
         userMessage.setMessageId(baseMessageId + "-user");
         userMessage.setContent(question);
-        userMessage.setMetadata(null);
+        userMessage.setMetadata(toQaImgMetadata(qaImgs));
         userMessage.setDocRefCount(0);
         userMessage.setCreateTime(now);
         userMessage.setDeleted(0);
@@ -794,14 +932,39 @@ public class RagServiceImpl implements RagService {
         return toJson(Map.of("docRefInfo", toJson(docRefs)));
     }
 
+    private String toQaImgMetadata(List<RagChatImageVO> qaImgs) {
+        return qaImgs == null || qaImgs.isEmpty() ? null : toJson(Map.of("qaImg", qaImgs));
+    }
+
+    private List<RagChatImageVO> parseQaImages(String metadata) {
+        if (!StringUtils.hasText(metadata)) {
+            return List.of();
+        }
+        try {
+            JsonNode qaImg = objectMapper.readTree(metadata).path("qaImg");
+            if (!qaImg.isArray()) {
+                return List.of();
+            }
+            List<RagChatImageVO> images = new ArrayList<>();
+            for (JsonNode image : qaImg) {
+                String fileUrl = image.path("fileUrl").asText("");
+                String fileName = image.path("fileName").asText("");
+                if (StringUtils.hasText(fileUrl) && StringUtils.hasText(fileName)) {
+                    images.add(new RagChatImageVO(fileUrl, fileName));
+                }
+            }
+            return images;
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
     private List<RagChatDocRefVO> parseDocRefs(String metadata) {
         if (!StringUtils.hasText(metadata)) {
             return List.of();
         }
         try {
-            Map<String, String> metadataMap = objectMapper.readValue(metadata, new TypeReference<Map<String, String>>() {
-            });
-            String docRefInfo = metadataMap.get("docRefInfo");
+            String docRefInfo = objectMapper.readTree(metadata).path("docRefInfo").asText("");
             if (!StringUtils.hasText(docRefInfo)) {
                 return List.of();
             }
@@ -915,6 +1078,9 @@ public class RagServiceImpl implements RagService {
     }
 
     private record RagChatContext(String prompt, List<RagChatDocRefVO> docRefs) {
+    }
+
+    private record ChatImageInput(RagChatImageVO image, byte[] bytes, String contentType) {
     }
 
     private record RewriteSelection(RagChatMessagePO targetMessage, int targetIndex, List<RagChatMessagePO> tailMessages) {
@@ -1484,7 +1650,11 @@ public class RagServiceImpl implements RagService {
     }
 
     private String getExtension(MultipartFile file) {
-        String extension = StringUtils.getFilenameExtension(file.getOriginalFilename());
+        return getExtension(file == null ? null : file.getOriginalFilename());
+    }
+
+    private String getExtension(String fileName) {
+        String extension = StringUtils.getFilenameExtension(fileName);
         return extension == null ? "" : extension.toLowerCase(Locale.ROOT);
     }
 

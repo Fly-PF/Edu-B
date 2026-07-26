@@ -181,9 +181,31 @@ public class RagController {
     }
 
     @Operation(summary = "RAG流式聊天")
-    @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
-    public Flux<ServerSentEvent<RagChatMessageVO>> chat(@Valid @RequestBody RagChatRequest request) {
+    @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
+    public Flux<ServerSentEvent<RagChatMessageVO>> chat(@Valid @ModelAttribute RagChatRequest request) {
         return ragService.chat(request);
+    }
+
+    @Operation(summary = "获取聊天图片")
+    @GetMapping("/chat/image")
+    public ResponseEntity<byte[]> getChatImage(@RequestParam String objectName) {
+        validateChatImageObjectName(objectName);
+        if (!ragService.existsChatImage(objectName)) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "图片不存在");
+        }
+        try (InputStream inputStream = minioClient.getObject(GetObjectArgs.builder()
+                .bucket(getBucketName())
+                .object(objectName)
+                .build())) {
+            return ResponseEntity.ok()
+                    .contentType(getMediaType(objectName))
+                    .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                    .body(StreamUtils.copyToByteArray(inputStream));
+        } catch (Exception ex) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "图片不存在");
+        }
     }
 
     @Operation(summary = "分页查询知识库文档")
@@ -352,6 +374,17 @@ public class RagController {
             throw new BaseException(HttpStatus.BAD_REQUEST, "图片地址错误");
         }
 
+        String extension = StringUtils.getFilenameExtension(objectName);
+        if (extension == null || !ALLOWED_IMAGE_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT))) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "仅支持jpg、jpeg、png、webp格式图片");
+        }
+    }
+
+    private void validateChatImageObjectName(String objectName) {
+        if (!StringUtils.hasText(objectName) || objectName.contains("..")
+                || !objectName.startsWith(minioProperties.getRag().getRagFilesBaseUrl())) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "图片地址错误");
+        }
         String extension = StringUtils.getFilenameExtension(objectName);
         if (extension == null || !ALLOWED_IMAGE_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT))) {
             throw new BaseException(HttpStatus.BAD_REQUEST, "仅支持jpg、jpeg、png、webp格式图片");

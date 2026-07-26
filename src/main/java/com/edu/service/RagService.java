@@ -48,6 +48,8 @@ public interface RagService {
 
     Flux<ServerSentEvent<RagChatMessageVO>> chat(RagChatRequest request);
 
+    boolean existsChatImage(String objectName);
+
     PageResult<RagDocumentVO> pageKnowledgeBaseDocuments(Long kbId, Integer pageNum, Integer pageSize, String docType,
                                                           String docName);
 

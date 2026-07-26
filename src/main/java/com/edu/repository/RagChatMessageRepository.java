@@ -18,4 +18,6 @@ public interface RagChatMessageRepository {
     int logicalDeleteSessionMessages(Long sessionId);
 
     int logicalDeleteMessagesByIds(List<Long> messageIds);
+
+    boolean existsActiveQaImage(String objectName);
 }
