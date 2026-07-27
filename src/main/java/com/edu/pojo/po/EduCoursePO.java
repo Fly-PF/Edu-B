@@ -47,6 +47,18 @@ public class EduCoursePO {
     @TableField(value = "total_chapter")
     private Integer totalChapter;
 
+    @TableField(value = "series_name")
+    private String seriesName;
+
+    @TableField(value = "series_order")
+    private Integer seriesOrder;
+
+    @TableField(value = "like_count")
+    private Integer likeCount;
+
+    @TableField(value = "publish_time")
+    private LocalDateTime publishTime;
+
     @TableField(value = "is_public")
     private Integer publicFlag;
 

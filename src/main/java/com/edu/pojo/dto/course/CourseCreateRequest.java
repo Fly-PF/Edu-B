@@ -15,6 +15,10 @@ public class CourseCreateRequest {
 
     private String description;
     private String coverUrl;
+    @Size(max = 100, message = "课程系列不能超过100个字符")
+    private String seriesName;
+    @Min(value = 0, message = "系列内排序不能小于0")
+    private Integer seriesOrder;
 
     @Min(value = 0, message = "课程公开状态不正确")
     @Max(value = 1, message = "课程公开状态不正确")

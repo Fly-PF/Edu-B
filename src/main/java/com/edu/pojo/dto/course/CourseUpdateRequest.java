@@ -11,6 +11,10 @@ public class CourseUpdateRequest {
     private String title;
     private String description;
     private String coverUrl;
+    @Size(max = 100, message = "课程系列不能超过100个字符")
+    private String seriesName;
+    @Min(value = 0, message = "系列内排序不能小于0")
+    private Integer seriesOrder;
     private String grade;
 
     @Min(value = 0, message = "课程公开状态不正确")

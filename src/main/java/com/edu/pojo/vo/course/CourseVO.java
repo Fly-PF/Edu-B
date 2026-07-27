@@ -25,6 +25,10 @@ public class CourseVO {
     private Integer totalDuration;
     private Integer totalChapter;
     private Long resourceCount;
+    private String seriesName;
+    private Integer seriesOrder;
+    private Integer likeCount;
+    private LocalDateTime publishedTime;
     private String status;
     private Boolean publicCourse;
     private Integer isPublic;

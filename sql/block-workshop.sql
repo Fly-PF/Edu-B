@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS block_project (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    owner_id BIGINT NOT NULL,
+    owner_name VARCHAR(50) NOT NULL,
+    title VARCHAR(100) NOT NULL,
+    description VARCHAR(500) DEFAULT '',
+    workspace_json LONGTEXT NOT NULL,
+    stage_json LONGTEXT NOT NULL,
+    thumbnail_data LONGTEXT,
+    visibility TINYINT NOT NULL DEFAULT 0 COMMENT '0 private, 1 public',
+    source_project_id BIGINT,
+    remix_count INT NOT NULL DEFAULT 0,
+    view_count INT NOT NULL DEFAULT 0,
+    published_time DATETIME,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    INDEX idx_block_project_owner (owner_id, update_time),
+    INDEX idx_block_project_gallery (visibility, published_time),
+    INDEX idx_block_project_source (source_project_id)
+) COMMENT 'Blockly workshop projects';
