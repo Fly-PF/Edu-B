@@ -70,6 +70,8 @@ public class WebSecurityConfig {
                         "/api/course-files/**"
                 ).permitAll()
                 .requestMatchers(GET, "/api/courses", "/api/courses/*", "/api/courses/*/chapters").permitAll()
+                .requestMatchers(GET, "/api/course-categories", "/api/course-categories/tags").permitAll()
+                .requestMatchers(GET, "/api/ai-exhibit/overview", "/api/ai-exhibit/cases").permitAll()
         );
 
         http.exceptionHandling(ex -> ex

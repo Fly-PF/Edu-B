@@ -58,7 +58,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final List<String> PUBLIC_GET_PATHS = List.of(
             "/api/courses",
             "/api/courses/*",
-            "/api/courses/*/chapters"
+            "/api/courses/*/chapters",
+            "/api/course-categories",
+            "/api/course-categories/tags",
+            "/api/ai-exhibit/overview",
+            "/api/ai-exhibit/cases"
     );
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
