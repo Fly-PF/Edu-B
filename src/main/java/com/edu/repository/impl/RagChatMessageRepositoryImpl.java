@@ -56,6 +56,21 @@ public class RagChatMessageRepositoryImpl implements RagChatMessageRepository {
     }
 
     @Override
+    public List<Long> selectSessionMessageIdsByMessageIds(Long sessionId, List<String> messageIds) {
+        if (messageIds == null || messageIds.isEmpty()) {
+            return List.of();
+        }
+        return ragChatMessageMapper.selectList(new LambdaQueryWrapper<RagChatMessagePO>()
+                        .select(RagChatMessagePO::getId)
+                        .eq(RagChatMessagePO::getSessionId, sessionId)
+                        .in(RagChatMessagePO::getMessageId, messageIds)
+                        .eq(RagChatMessagePO::getDeleted, 0))
+                .stream()
+                .map(RagChatMessagePO::getId)
+                .toList();
+    }
+
+    @Override
     public int logicalDeleteSessionMessages(Long sessionId) {
         return ragChatMessageMapper.update(new LambdaUpdateWrapper<RagChatMessagePO>()
                 .eq(RagChatMessagePO::getSessionId, sessionId)

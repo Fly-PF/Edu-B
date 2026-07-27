@@ -15,6 +15,8 @@ public interface RagChatMessageRepository {
 
     List<Long> selectSessionMessageIds(Long sessionId);
 
+    List<Long> selectSessionMessageIdsByMessageIds(Long sessionId, List<String> messageIds);
+
     int logicalDeleteSessionMessages(Long sessionId);
 
     int logicalDeleteMessagesByIds(List<Long> messageIds);

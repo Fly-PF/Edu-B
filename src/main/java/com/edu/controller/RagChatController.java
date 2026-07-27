@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -77,6 +78,14 @@ public class RagChatController {
     @GetMapping("/chat/message")
     public Result<List<RagChatMessageVO>> listChatMessages(@RequestParam("session_id") @NotNull @Min(1) Long sessionId) {
         return Result.setResult(HttpStatus.OK, "查询成功", ragService.listChatMessages(sessionId));
+    }
+
+    @Operation(summary = "删除RAG聊天消息对")
+    @PostMapping("/chat/message/delete")
+    public Result<Void> deleteChatMessagePair(@RequestParam("session_id") @NotNull @Min(1) Long sessionId,
+                                              @RequestParam("message_id") @NotBlank String messageId) {
+        ragService.deleteChatMessagePair(sessionId, messageId);
+        return Result.setResult(HttpStatus.OK, "删除成功");
     }
 
     @Operation(summary = "RAG流式聊天")

@@ -46,6 +46,8 @@ public interface RagService {
 
     List<RagChatMessageVO> listChatMessages(Long sessionId);
 
+    void deleteChatMessagePair(Long sessionId, String messageId);
+
     Flux<ServerSentEvent<RagChatMessageVO>> chat(RagChatRequest request);
 
     boolean existsChatImage(String objectName);

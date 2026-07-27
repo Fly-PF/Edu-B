@@ -399,6 +399,45 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteChatMessagePair(Long sessionId, String messageId) {
+        UserInfoDTO loginUser = getLoginUser();
+        validateChatSession(sessionId, loginUser.getUserId());
+
+        String messageIdValue = StringUtils.hasText(messageId) ? messageId.trim() : "";
+        int roleSeparatorIndex = messageIdValue.lastIndexOf('-');
+        if (roleSeparatorIndex <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "消息ID无效");
+        }
+
+        String baseMessageId = messageIdValue.substring(0, roleSeparatorIndex);
+        String role = messageIdValue.substring(roleSeparatorIndex + 1);
+        if (!"user".equals(role) && !"assistant".equals(role)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "消息ID无效");
+        }
+
+        try {
+            UUID.fromString(baseMessageId);
+        } catch (IllegalArgumentException ex) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "消息ID无效");
+        }
+
+        List<Long> messageIds = ragChatMessageRepository.selectSessionMessageIdsByMessageIds(sessionId,
+                List.of(baseMessageId + "-user", baseMessageId + "-assistant"));
+        if (messageIds.isEmpty()) {
+            return;
+        }
+        if (messageIds.size() != 2) {
+            throw new BaseException(HttpStatus.CONFLICT, "消息对不完整，无法删除");
+        }
+
+        ragMsgDocRefRepository.logicalDeleteMsgDocRefs(messageIds);
+        if (ragChatMessageRepository.logicalDeleteMessagesByIds(messageIds) != messageIds.size()) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "消息删除失败");
+        }
+    }
+
+    @Override
     public boolean existsChatImage(String objectName) {
         return ragChatMessageRepository.existsActiveQaImage(objectName);
     }
