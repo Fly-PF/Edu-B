@@ -5,11 +5,14 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class CourseUpdateRequest {
     @Size(max = 200, message = "课程名称不能超过200个字符")
     private String title;
     private String description;
+    private List<String> tags;
     private String coverUrl;
     @Size(max = 100, message = "课程系列不能超过100个字符")
     private String seriesName;
