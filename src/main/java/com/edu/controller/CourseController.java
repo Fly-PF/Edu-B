@@ -33,12 +33,14 @@ public class CourseController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) Integer difficulty,
-            @RequestParam(required = false) Integer courseType
+            @RequestParam(required = false) Integer courseType,
+            @RequestParam(required = false) String tags,
+            @RequestParam(defaultValue = "false") boolean matchAll
     ) {
         return Result.setResult(
                 HttpStatus.OK,
                 "查询成功",
-                courseService.listPublicCourses(keyword, grade, difficulty, courseType)
+                courseService.listPublicCourses(keyword, grade, difficulty, courseType, tags, matchAll)
         );
     }
 

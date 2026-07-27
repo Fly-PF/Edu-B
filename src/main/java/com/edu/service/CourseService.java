@@ -19,6 +19,15 @@ import java.util.List;
 public interface CourseService {
     List<CourseVO> listPublicCourses(String keyword, String grade, Integer difficulty, Integer courseType);
 
+    List<CourseVO> listPublicCourses(
+            String keyword,
+            String grade,
+            Integer difficulty,
+            Integer courseType,
+            String tags,
+            boolean matchAll
+    );
+
     CourseVO getCourse(Long courseId);
 
     List<ChapterVO> listCourseChapters(Long courseId);
