@@ -437,7 +437,7 @@ public class RagServiceImpl implements RagService {
                             isMultiModel() ? imageInputs : List.of()))
                     .flatMap(response -> {
                         String chunk = extractChatText(response);
-                        if (!StringUtils.hasText(chunk)) {
+                        if (chunk == null || chunk.isEmpty()) {
                             return Flux.empty();
                         }
                         answer.append(chunk);
@@ -479,7 +479,7 @@ public class RagServiceImpl implements RagService {
                             isMultiModel() ? imageInputs : List.of()))
                     .flatMap(response -> {
                         String chunk = extractChatText(response);
-                        if (!StringUtils.hasText(chunk)) {
+                        if (chunk == null || chunk.isEmpty()) {
                             return Flux.empty();
                         }
                         answer.append(chunk);
@@ -951,7 +951,7 @@ public class RagServiceImpl implements RagService {
     }
 
     private String extractChatText(ChatResponse response) {
-        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
+        if (response == null || response.getResult() == null || response.getResult().getOutput().getText() == null) {
             return "";
         }
         return response.getResult().getOutput().getText();
@@ -1386,7 +1386,7 @@ public class RagServiceImpl implements RagService {
         if (isImage(extension)) {
             try (InputStream inputStream = file.getInputStream()) {
                 String content = imageTextExtractUtil.extract(inputStream);
-                return List.of(new RagTextChunkDTO("image 1/1", content));
+                return List.of(new RagTextChunkDTO("图片 1/1", content));
             } catch (BaseException ex) {
                 throw ex;
             } catch (Exception ex) {

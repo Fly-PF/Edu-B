@@ -26,7 +26,7 @@ public abstract class AbstractTikaTextExtractUtil {
     protected RagTextChunkDTO logPage(Logger log, String fileTypeName, int pageNum, int totalPages, String text) {
         String markdownText = normalizeMarkdownText(text);
         log.info("Extracted {} page {}/{}, content: {}", fileTypeName, pageNum, totalPages, markdownText);
-        return new RagTextChunkDTO("page " + pageNum + "/" + totalPages, markdownText);
+        return new RagTextChunkDTO("页 " + pageNum + "/" + totalPages, markdownText);
     }
 
     protected List<RagTextChunkDTO> logParagraphSegments(Logger log, String fileTypeName, List<String> paragraphs) {
@@ -37,7 +37,7 @@ public abstract class AbstractTikaTextExtractUtil {
             TextSegment segment = segments.get(i);
             log.info("Extracted {} segment {}/{}, paragraphs {}-{}, content: {}",
                     fileTypeName, i + 1, totalSegments, segment.startParagraph(), segment.endParagraph(), segment.text());
-            chunks.add(new RagTextChunkDTO("paragraphs " + segment.startParagraph() + "-" + segment.endParagraph()
+            chunks.add(new RagTextChunkDTO("段落 " + segment.startParagraph() + "-" + segment.endParagraph()
                     + "/" + paragraphCount(paragraphs), segment.text()));
         }
         return chunks;

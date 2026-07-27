@@ -178,7 +178,7 @@ public class WordTextExtractUtil extends AbstractTikaTextExtractUtil {
             TextSegment segment = segments.get(i);
             log.info("Extracted {} segment {}/{}, paragraphs {}-{}, content: {}",
                     fileTypeName, i + 1, totalSegments, segment.startParagraph(), segment.endParagraph(), segment.text());
-            chunks.add(new RagTextChunkDTO("paragraphs " + segment.startParagraph() + "-" + segment.endParagraph()
+            chunks.add(new RagTextChunkDTO("段落 " + segment.startParagraph() + "-" + segment.endParagraph()
                     + "/" + paragraphCount(parts), segment.text()));
         }
         return chunks;
