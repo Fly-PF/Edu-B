@@ -92,6 +92,23 @@ public class CourseResourceStorageServiceImpl implements CourseResourceStorageSe
     }
 
     @Override
+    public byte[] readLocalBytes(String storedUrl, long maxBytes) {
+        if (!StringUtils.hasText(storedUrl) || isExternalUrl(storedUrl) || maxBytes <= 0) {
+            return null;
+        }
+        try {
+            Path target = resolveStoredPath(storedUrl);
+            if (!Files.isRegularFile(target) || Files.size(target) > maxBytes) {
+                return null;
+            }
+            return Files.readAllBytes(target);
+        } catch (IOException ex) {
+            log.warn("读取课程资料失败，objectName={}", storedUrl, ex);
+            return null;
+        }
+    }
+
+    @Override
     public void delete(String storedUrl) {
         if (!StringUtils.hasText(storedUrl) || isExternalUrl(storedUrl) || !storedUrl.startsWith(COURSE_DIR)) {
             return;

@@ -63,4 +63,16 @@ public class AiCompanionRepositoryImpl implements AiCompanionRepository {
                 .orderByAsc(AiCompanionMessagePO::getCreateTime)
                 .orderByAsc(AiCompanionMessagePO::getId));
     }
+
+    @Override
+    public int deleteMessagesByStudentId(Long studentId) {
+        return messageMapper.delete(new LambdaQueryWrapper<AiCompanionMessagePO>()
+                .eq(AiCompanionMessagePO::getStudentId, studentId));
+    }
+
+    @Override
+    public int deleteSessionsByStudentId(Long studentId) {
+        return sessionMapper.delete(new LambdaQueryWrapper<AiCompanionSessionPO>()
+                .eq(AiCompanionSessionPO::getStudentId, studentId));
+    }
 }

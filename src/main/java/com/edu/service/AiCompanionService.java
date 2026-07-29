@@ -18,4 +18,6 @@ public interface AiCompanionService {
     List<AiCompanionMessageVO> appendExchange(Long sessionId, AiCompanionExchangeRequest request);
 
     List<AiCompanionMessageVO> listMessages(Long sessionId);
+
+    void clearConversations();
 }

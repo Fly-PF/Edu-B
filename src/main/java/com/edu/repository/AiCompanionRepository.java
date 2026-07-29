@@ -18,4 +18,8 @@ public interface AiCompanionRepository {
     int insertMessage(AiCompanionMessagePO message);
 
     List<AiCompanionMessagePO> selectMessagesBySessionId(Long sessionId);
+
+    int deleteMessagesByStudentId(Long studentId);
+
+    int deleteSessionsByStudentId(Long studentId);
 }

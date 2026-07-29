@@ -26,6 +26,9 @@ public class AiCompanionContextVO {
     private Integer totalChapterCount;
     private List<String> chapterTitles;
     private List<String> resourceNames;
+    private List<AiCompanionMaterialExcerpt> matchedMaterials;
+    private List<AiCompanionWebSource> webSources;
     private Long nextChapterId;
     private String nextChapterTitle;
+    private List<AiCompanionStudySuggestion> personalizedSuggestions;
 }

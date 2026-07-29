@@ -14,4 +14,6 @@ public class AiCompanionProperties {
     private String model;
     private int timeoutSeconds = 30;
     private int maxTokens = 800;
+    private boolean webSearchEnabled = true;
+    private int webSearchTimeoutSeconds = 8;
 }

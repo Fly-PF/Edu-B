@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,6 +56,13 @@ public class StudentAiCompanionController {
     @GetMapping("/sessions/{sessionId}/messages")
     public Result<List<AiCompanionMessageVO>> listMessages(@PathVariable Long sessionId) {
         return Result.setResult(HttpStatus.OK, "查询成功", aiCompanionService.listMessages(sessionId));
+    }
+
+    @Operation(summary = "清空当前学生的智能学伴对话")
+    @DeleteMapping("/sessions")
+    public Result<Void> clearConversations() {
+        aiCompanionService.clearConversations();
+        return Result.setResult(HttpStatus.OK, "已清空全部对话", null);
     }
 
     @Operation(summary = "获取当前课程学习上下文")

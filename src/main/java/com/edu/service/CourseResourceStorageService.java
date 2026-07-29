@@ -7,6 +7,11 @@ public interface CourseResourceStorageService {
 
     String createReadUrl(String storedUrl);
 
+    /**
+     * Reads a local course file for server-side processing. External URLs are never fetched here.
+     */
+    byte[] readLocalBytes(String storedUrl, long maxBytes);
+
     void delete(String storedUrl);
 
     record StoredCourseFile(String objectName, String originalName, Long size, Integer resourceType) {
