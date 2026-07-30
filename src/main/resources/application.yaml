@@ -3,6 +3,10 @@ server:
 spring:
   application:
     name: Edu-B
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/learning-practice.sql
   servlet:
     multipart:
       max-file-size: 1GB

@@ -65,16 +65,30 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public List<CourseVO> listPublicCourses(String keyword, String grade, Integer difficulty, Integer courseType) {
+        return listPublicCourses(keyword, grade, difficulty, courseType, null, false);
+    }
+
+    @Override
+    public List<CourseVO> listPublicCourses(
+            String keyword,
+            String grade,
+            Integer difficulty,
+            Integer courseType,
+            String tags,
+            boolean matchAll
+    ) {
         validateCourseFilter(difficulty, courseType);
-        UserInfoDTO user = optionalUser();
+        UserInfoDTO user = currentUser();
+        List<String> selectedTags = parseTags(tags);
         return courseRepository.selectPublishedCourses(keyword, grade, difficulty, courseType).stream()
                 .map(course -> toCourseVO(course, user))
+                .filter(course -> matchesTags(course.getTags(), selectedTags, matchAll))
                 .toList();
     }
 
     @Override
     public CourseVO getCourse(Long courseId) {
-        UserInfoDTO user = optionalUser();
+        UserInfoDTO user = currentUser();
         EduCoursePO course = requireCourse(courseId);
         if (!canViewCourse(course, user)) {
             throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该课程");
@@ -84,7 +98,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public List<ChapterVO> listCourseChapters(Long courseId) {
-        UserInfoDTO user = optionalUser();
+        UserInfoDTO user = currentUser();
         EduCoursePO course = requireCourse(courseId);
         if (!canViewCourse(course, user)) {
             throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该课程目录");
@@ -209,14 +223,17 @@ public class CourseServiceImpl implements CourseService {
                 .intro(request.getDescription())
                 .totalDuration(0)
                 .totalChapter(0)
-                .publicFlag(normalizePublicFlag(request.getIsPublic()))
+                .publicFlag(0)
                 .status(STATUS_DRAFT)
                 .createBy(user.getUserId())
                 .updateBy(user.getUserId())
                 .createTime(now)
                 .updateTime(now)
                 .deleted(0)
-                .extJson("{}")
+                .extJson(writeTags("{}", request.getTags()))
+                .seriesName(normalizeSeriesName(request.getSeriesName()))
+                .seriesOrder(nonNegative(request.getSeriesOrder()))
+                .likeCount(0)
                 .build();
         courseRepository.insertCourse(course);
         return toCourseVO(course, user);
@@ -236,11 +253,17 @@ public class CourseServiceImpl implements CourseService {
         if (request.getDescription() != null) {
             course.setIntro(request.getDescription());
         }
+        if (request.getTags() != null) {
+            course.setExtJson(writeTags(course.getExtJson(), request.getTags()));
+        }
         if (request.getCoverUrl() != null) {
             course.setCover(request.getCoverUrl());
         }
-        if (request.getIsPublic() != null) {
-            course.setPublicFlag(normalizePublicFlag(request.getIsPublic()));
+        if (request.getSeriesName() != null) {
+            course.setSeriesName(normalizeSeriesName(request.getSeriesName()));
+        }
+        if (request.getSeriesOrder() != null) {
+            course.setSeriesOrder(nonNegative(request.getSeriesOrder()));
         }
         if (request.getGrade() != null) {
             if (!StringUtils.hasText(request.getGrade())) {
@@ -334,6 +357,9 @@ public class CourseServiceImpl implements CourseService {
 
         course.setStatus(STATUS_PUBLISHED);
         course.setPublicFlag(PUBLIC_COURSE);
+        if (course.getPublishTime() == null) {
+            course.setPublishTime(LocalDateTime.now());
+        }
         course.setUpdateBy(user.getUserId());
         course.setUpdateTime(LocalDateTime.now());
         applyCourseTotals(course, chapters);
@@ -626,6 +652,10 @@ public class CourseServiceImpl implements CourseService {
                 .totalDuration(defaultNumber(course.getTotalDuration()))
                 .totalChapter(chapters.size())
                 .resourceCount(resourceCount)
+                .seriesName(course.getSeriesName())
+                .seriesOrder(defaultNumber(course.getSeriesOrder()))
+                .likeCount(defaultNumber(course.getLikeCount()))
+                .publishedTime(course.getPublishTime())
                 .status(statusText(course.getStatus()))
                 .publicCourse(Objects.equals(course.getPublicFlag(), PUBLIC_COURSE))
                 .isPublic(course.getPublicFlag())
@@ -688,15 +718,8 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private boolean canViewCourse(EduCoursePO course, UserInfoDTO user) {
-        if (isPublishedPublic(course)) {
-            return true;
-        }
-
-        if (user == null || user.getUserId() == null) {
-            return false;
-        }
-
         return Objects.equals(course.getTeacherId(), user.getUserId())
+                || isPublishedPublic(course)
                 || hasClassAccess(course, user);
     }
 
@@ -728,10 +751,6 @@ public class CourseServiceImpl implements CourseService {
             throw new BaseException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
         return user;
-    }
-
-    private UserInfoDTO optionalUser() {
-        return SecurityUtil.getLoginUser();
     }
 
     private Integer parseStatus(String status) {
@@ -825,22 +844,33 @@ public class CourseServiceImpl implements CourseService {
         }
     }
 
+    private List<String> parseTags(String tags) {
+        if (!StringUtils.hasText(tags)) return List.of();
+        return java.util.Arrays.stream(tags.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private boolean matchesTags(List<String> courseTags, List<String> selectedTags, boolean matchAll) {
+        if (selectedTags.isEmpty()) return true;
+        List<String> normalizedCourseTags = courseTags == null ? List.of() : courseTags;
+        return matchAll
+                ? selectedTags.stream().allMatch(normalizedCourseTags::contains)
+                : selectedTags.stream().anyMatch(normalizedCourseTags::contains);
+    }
+
+    private String normalizeSeriesName(String seriesName) {
+        return StringUtils.hasText(seriesName) ? seriesName.trim() : null;
+    }
+
     private int nonNegative(Integer value) {
         return value == null ? 0 : Math.max(0, value);
     }
 
     private int clampProgress(Integer value) {
         return value == null ? 0 : Math.max(0, Math.min(100, value));
-    }
-
-    private int normalizePublicFlag(Integer value) {
-        if (value == null) {
-            return 0;
-        }
-        if (value != 0 && value != 1) {
-            throw new BaseException(HttpStatus.BAD_REQUEST, "课程公开状态不正确");
-        }
-        return value;
     }
 
     private int defaultNumber(Integer value) {
