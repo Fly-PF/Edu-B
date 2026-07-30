@@ -29,7 +29,7 @@ public class AvatarUrlBuilder {
     }
 
     public String getDefaultAvatarObjectName() {
-        String defaultAvatar = minioProperties.getDefaultAvatar();
+        String defaultAvatar = minioProperties.getAvatar().getDefaultAvatar();
         if (!StringUtils.hasText(defaultAvatar)) {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "默认头像未配置");
         }

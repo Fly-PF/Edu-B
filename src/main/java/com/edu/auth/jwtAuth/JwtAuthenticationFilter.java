@@ -52,6 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/swagger-resources/**",
             "/api/user/register/student",
             "/api/user/avatar/image",
+            "/api/rag/kb/cover",
             "/api/course-files/**"
     );
 
@@ -59,7 +60,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/api/course-categories",
             "/api/course-categories/tags",
             "/api/ai-exhibit/overview",
-            "/api/ai-exhibit/cases"
+            "/api/ai-exhibit/cases",
+            "/api/rag/kb/public",
+            "/api/rag/kb/public/page",
+            "/api/rag/kb/public/documents"
     );
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
