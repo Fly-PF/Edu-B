@@ -1,0 +1,9 @@
+edu:
+  safety:
+    semantic:
+      provider: dashscope
+      api-key: ${DASHSCOPE_API_KEY:}
+      endpoint: https://ws-2oz82zxkm7hqgi00.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+      model: qwen3.7-plus
+      timeout-seconds: 20
+      enable-thinking: false
