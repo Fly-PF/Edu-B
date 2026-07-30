@@ -14,7 +14,8 @@ public class CourseCreateRequest {
     @NotBlank(message = "课程名称不能为空")
     @Size(max = 200, message = "课程名称不能超过200个字符")
     private String title;
-    private List<String> tags;
+    private List<String> tags
+
     private String description;
     private String coverUrl;
     @Size(max = 100, message = "课程系列不能超过100个字符")

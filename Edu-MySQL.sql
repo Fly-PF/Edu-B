@@ -479,3 +479,100 @@ CREATE TABLE block_project (
     INDEX idx_block_project_gallery (visibility, published_time),
     INDEX idx_block_project_source (source_project_id)
 ) COMMENT 'Blockly workshop projects';
+
+
+DROP TABLE IF EXISTS rag_chat_session;
+CREATE TABLE rag_chat_session
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT  NOT NULL COMMENT '对话用户',
+    session_name VARCHAR(200) COMMENT '会话标题',
+    kb_ref_count TINYINT NOT NULL COMMENT '会话依据的知识库数量',
+    create_time  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT  DEFAULT 0,
+    INDEX idx_user_id (user_id)
+) COMMENT 'RAG聊天会话';
+
+DROP TABLE IF EXISTS rag_session_kb_ref;
+CREATE TABLE rag_session_kb_ref
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    session_id  BIGINT NOT NULL COMMENT '对话会话ID',
+    kb_id       BIGINT NOT NULL COMMENT '知识库ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted     TINYINT  DEFAULT 0,
+    UNIQUE KEY uk_session_kb (session_id, kb_id),
+    INDEX idx_session_id (session_id)
+) COMMENT '会话绑定知识库关联表';
+
+DROP TABLE IF EXISTS rag_chat_message;
+CREATE TABLE rag_chat_message
+(
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    session_id    BIGINT      NOT NULL COMMENT '会话ID',
+    message_id    VARCHAR(64) NOT NULL COMMENT '消息唯一标识ID(ID+role作为唯一标识)',
+    role          VARCHAR(20) NOT NULL COMMENT '消息角色（如user/assistant/system）',
+    content       LONGTEXT    NOT NULL COMMENT '消息内容',
+    metadata      JSON COMMENT '消息元数据（如扩展字段等，JSON格式存储）',
+    doc_ref_count TINYINT     NOT NULL COMMENT '消息依据的文档数量',
+    create_time   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted       TINYINT  DEFAULT 0,
+    INDEX idx_session_id (session_id),
+    UNIQUE KEY uk_message_id (message_id)
+) COMMENT 'AI对话消息记录';
+
+DROP TABLE IF EXISTS rag_msg_doc_ref;
+CREATE TABLE rag_msg_doc_ref
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    msg_id      BIGINT NOT NULL COMMENT '消息主键ID（rag_chat_message.id）',
+    doc_id      BIGINT NOT NULL COMMENT '引用文档ID（rag_document.id）',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted     TINYINT  DEFAULT 0,
+    UNIQUE KEY uk_msg_doc (msg_id, doc_id),
+    INDEX idx_msg_id (msg_id)
+) COMMENT 'AI消息引用文档关联表';
+
+DROP TABLE IF EXISTS rag_kb_user_collection;
+CREATE TABLE rag_kb_user_collection
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT NOT NULL COMMENT '用户ID',
+    kb_id       BIGINT NOT NULL COMMENT '知识库ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted     TINYINT  DEFAULT 0,
+    UNIQUE KEY uk_user_kb (user_id, kb_id)
+) COMMENT 'RAG知识库用户收藏表';
+
+DROP TABLE IF EXISTS rag_knowledge_base;
+CREATE TABLE rag_knowledge_base
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT       NOT NULL COMMENT '用户ID',
+    kb_name     VARCHAR(200) NOT NULL COMMENT '知识库名称',
+    kb_cover    VARCHAR(255) NOT NULL COMMENT '封面图链接URL',
+    description TEXT COMMENT '库说明',
+    kb_type     TINYINT      NOT NULL COMMENT '1其他 2课程 3教材 4政策',
+    is_public   TINYINT  DEFAULT 0 COMMENT '0私有 1平台公开',
+    status      TINYINT  DEFAULT 1 COMMENT '0停用 1启用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT  DEFAULT 0
+) COMMENT 'RAG知识库总库';
+
+DROP TABLE IF EXISTS rag_document;
+CREATE TABLE rag_document
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    kb_id       BIGINT       NOT NULL COMMENT '所属知识库',
+    doc_name    VARCHAR(200) NOT NULL COMMENT '文档名称',
+    doc_type    VARCHAR(20)  NOT NULL COMMENT '文档类型（如：.txt/.pdf/.docx等）',
+    description TEXT COMMENT '文档说明',
+    file_url    VARCHAR(255) NOT NULL COMMENT '原始文件地址',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    ext_json    JSON COMMENT '扩展字段，JSON',
+    deleted     TINYINT  DEFAULT 0,
+    INDEX idx_kb_id (kb_id)
+) COMMENT '知识库文档';

@@ -5,6 +5,7 @@ import com.edu.auth.handler.AuthenticationHandler;
 import com.edu.auth.jwtAuth.JwtAuthenticationFilter;
 import com.edu.auth.mailLogin.MailAuthenticationFilter;
 import com.edu.auth.usernameLogin.UsernameAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -60,6 +61,7 @@ public class WebSecurityConfig {
                 .anonymous(AbstractHttpConfigurer::disable);
 
         http.authorizeHttpRequests(authorize -> authorize
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 .requestMatchers(
                         "/doc.html",
                         "/v3/api-docs/**",
@@ -67,11 +69,18 @@ public class WebSecurityConfig {
                         "/swagger-resources/**",
                         "/api/user/register/student",
                         "/api/user/avatar/image",
+                        "/api/rag/kb/cover",
+                        "/api/rag/chat/image",
+                        "/api/rag/files/preview",
                         "/api/course-files/**"
                 ).permitAll()
-                .requestMatchers(GET, "/api/courses", "/api/courses/*", "/api/courses/*/chapters").permitAll()
                 .requestMatchers(GET, "/api/course-categories", "/api/course-categories/tags").permitAll()
                 .requestMatchers(GET, "/api/ai-exhibit/overview", "/api/ai-exhibit/cases").permitAll()
+                .requestMatchers(GET,
+                        "/api/rag/kb/public",
+                        "/api/rag/kb/public/page",
+                        "/api/rag/kb/public/documents").permitAll()
+                .requestMatchers(GET, "/api/courses", "/api/courses/*", "/api/courses/*/chapters").permitAll()
         );
 
         http.exceptionHandling(ex -> ex

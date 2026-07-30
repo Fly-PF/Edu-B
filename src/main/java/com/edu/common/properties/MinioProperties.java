@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.util.unit.DataSize;
 
 @Component
 @ConfigurationProperties(prefix = "edu.minio")
@@ -19,5 +20,28 @@ public class MinioProperties {
     private String secretKey;
     private String buckerName;
     private String publicBaseUrl;
-    private String defaultAvatar;
+    @Builder.Default
+    private Avatar avatar = new Avatar();
+    @Builder.Default
+    private Rag rag = new Rag();
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Avatar {
+        private String avatarFilesBaseUrl;
+        private String defaultAvatar;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Rag {
+        private String ragFilesBaseUrl;
+        private DataSize maxRagFileSize;
+        private Integer maxRefRagKbCount;
+        private Integer maxRefRagDocCount;
+    }
 }
