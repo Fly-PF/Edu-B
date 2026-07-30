@@ -50,6 +50,8 @@ public interface RagService {
 
     Flux<ServerSentEvent<RagChatMessageVO>> chat(RagChatRequest request);
 
+    String prepareSpeechText(String content);
+
     boolean existsChatImage(String objectName);
 
     PageResult<RagDocumentVO> pageKnowledgeBaseDocuments(Long kbId, Integer pageNum, Integer pageSize, String docType,

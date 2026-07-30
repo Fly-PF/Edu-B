@@ -5,6 +5,7 @@ import com.edu.common.Result;
 import com.edu.pojo.dto.rag.RagChatRequest;
 import com.edu.pojo.dto.rag.RagChatSessionCreateRequest;
 import com.edu.pojo.dto.rag.RagChatSessionRenameRequest;
+import com.edu.pojo.dto.rag.RagSpeechTextRequest;
 import com.edu.pojo.vo.rag.RagChatMessageVO;
 import com.edu.pojo.vo.rag.RagChatSessionVO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
@@ -93,6 +94,12 @@ public class RagChatController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Flux<ServerSentEvent<RagChatMessageVO>> chat(@Valid @ModelAttribute RagChatRequest request) {
         return ragService.chat(request);
+    }
+
+    @Operation(summary = "处理朗读文本")
+    @PostMapping("/chat/speech-text")
+    public Result<String> prepareSpeechText(@Valid @RequestBody RagSpeechTextRequest request) {
+        return Result.setResult(HttpStatus.OK, "处理成功", ragService.prepareSpeechText(request.getContent()));
     }
 
     @Operation(summary = "获取聊天图片")

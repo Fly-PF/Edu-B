@@ -86,7 +86,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.UUID;
 
 @Service
@@ -99,6 +101,17 @@ public class RagServiceImpl implements RagService {
     private static final Set<String> COVER_ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final Set<String> CHAT_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final long MAX_CHAT_IMAGE_SIZE = DataSize.ofMegabytes(12).toBytes();
+    private static final long SPEECH_TEXT_TIMEOUT_SECONDS = 120L;
+    private static final String SPEECH_TEXT_PROMPT = """
+            请将以下待朗读文本转换为适合中文语音朗读的纯文本。
+            保留正文、标题、列表和链接标题；将复杂公式、数学符号和 Markdown 表达转换为自然中文说明。
+            剔除流程图、图表、代码片段、图片地址、引用文档信息和其他不适合朗读的内容。
+            正确处理 Markdown 转义字符，不要输出 Markdown 标记、LaTex 标记、代码、链接地址或任何解释说明。
+            最终只能输出处理后的纯文本。
+
+            待朗读文本：
+            %s
+            """;
     private static final Set<String> COVER_ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "webp", "pdf", "ppt", "pptx", "txt", "md", "docx", "doc");
@@ -457,6 +470,32 @@ public class RagServiceImpl implements RagService {
             return streamRewriteChat(loginUser.getUserId(), sessionId, message.trim(), rewriteMessageId.trim());
         }
         return streamChat(loginUser.getUserId(), sessionId, message.trim(), UUID.randomUUID().toString(), request.getImgFiles());
+    }
+
+    @Override
+    public String prepareSpeechText(String content) {
+        if (!StringUtils.hasText(content)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "朗读文本不能为空");
+        }
+
+        AIModelProperties.Provider provider = getTextProvider();
+        OpenAiChatModel textModel = buildOpenAiChatModel(provider, provider.getTextModel().getModelName(), false);
+        CompletableFuture<ChatResponse> task = CompletableFuture.supplyAsync(
+                () -> textModel.call(new Prompt(SPEECH_TEXT_PROMPT.formatted(content.trim()))));
+        try {
+            String result = extractChatText(task.get(SPEECH_TEXT_TIMEOUT_SECONDS, TimeUnit.SECONDS)).trim();
+            if (!StringUtils.hasText(result)) {
+                throw new BaseException(HttpStatus.BAD_GATEWAY, "朗读文本处理失败");
+            }
+            return result;
+        } catch (TimeoutException ex) {
+            task.cancel(true);
+            throw new BaseException(HttpStatus.GATEWAY_TIMEOUT, "朗读文本处理超时");
+        } catch (BaseException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BaseException(HttpStatus.BAD_GATEWAY, "朗读文本处理失败");
+        }
     }
 
     private Flux<ServerSentEvent<RagChatMessageVO>> streamRewriteChat(Long userId, Long sessionId, String message,
@@ -989,6 +1028,15 @@ public class RagServiceImpl implements RagService {
         return provider;
     }
 
+    private AIModelProperties.Provider getTextProvider() {
+        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
+        if (provider == null || !StringUtils.hasText(provider.getApiKey()) || !StringUtils.hasText(provider.getBaseUrl())
+                || provider.getTextModel() == null || !StringUtils.hasText(provider.getTextModel().getModelName())) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "朗读文本模型配置不完整");
+        }
+        return provider;
+    }
+
     private String extractChatText(ChatResponse response) {
         if (response == null || response.getResult() == null || response.getResult().getOutput().getText() == null) {
             return "";
@@ -1380,10 +1428,29 @@ public class RagServiceImpl implements RagService {
     }
 
     private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider) {
+        return buildOpenAiChatModel(provider, provider.getChatModel().getModelName());
+    }
+
+    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider, String modelName) {
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .apiKey(provider.getApiKey())
                 .baseUrl(provider.getBaseUrl())
-                .model(provider.getChatModel().getModelName())
+                .model(modelName)
+                .build();
+
+        return OpenAiChatModel.builder()
+                .options(options)
+                .observationRegistry(ObservationRegistry.NOOP)
+                .build();
+    }
+
+    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider, String modelName,
+                                                 boolean enableThinking) {
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .apiKey(provider.getApiKey())
+                .baseUrl(provider.getBaseUrl())
+                .model(modelName)
+                .extraBody(Map.of("enable_thinking", enableThinking))
                 .build();
 
         return OpenAiChatModel.builder()
