@@ -1,6 +1,6 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.AiModelProperties;
+import com.edu.common.properties.OpenAIModelProperties;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.ai.AiDrawGuessRequest;
 import com.edu.pojo.vo.ai.AiDrawGuessPredictionVO;
@@ -26,13 +26,13 @@ import java.util.Map;
 public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessService {
     private static final int MAX_DATA_URL_LENGTH = 8 * 1024 * 1024;
 
-    private final AiModelProperties aiModelProperties;
+    private final OpenAIModelProperties openAIModelProperties;
     private final ObjectMapper objectMapper;
 
     @Override
     public AiDrawGuessResultVO guess(AiDrawGuessRequest request) {
         validateRequest(request);
-        AiModelProperties.OpenAi openAi = aiModelProperties.getOpenai();
+        OpenAIModelProperties.OpenAi openAi = openAIModelProperties.getOpenai();
         if (!StringUtils.hasText(openAi.getApiKey())) {
             throw new BaseException(HttpStatus.SERVICE_UNAVAILABLE, "未配置 OpenAI API Key，无法调用真实视觉模型");
         }
@@ -61,7 +61,7 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
     }
 
     private String callOpenAi(
-            AiModelProperties.OpenAi openAi,
+            OpenAIModelProperties.OpenAi openAi,
             AiDrawGuessRequest request
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
