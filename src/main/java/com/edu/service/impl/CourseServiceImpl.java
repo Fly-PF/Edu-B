@@ -223,7 +223,7 @@ public class CourseServiceImpl implements CourseService {
                 .intro(request.getDescription())
                 .totalDuration(0)
                 .totalChapter(0)
-                .publicFlag(0)
+                .publicFlag(Objects.equals(request.getIsPublic(), PUBLIC_COURSE) ? PUBLIC_COURSE : 0)
                 .status(STATUS_DRAFT)
                 .createBy(user.getUserId())
                 .updateBy(user.getUserId())
@@ -276,6 +276,9 @@ public class CourseServiceImpl implements CourseService {
         }
         if (request.getCourseType() != null) {
             course.setCourseType(request.getCourseType());
+        }
+        if (request.getIsPublic() != null) {
+            course.setPublicFlag(request.getIsPublic());
         }
         course.setUpdateBy(user.getUserId());
         course.setUpdateTime(LocalDateTime.now());
@@ -356,7 +359,6 @@ public class CourseServiceImpl implements CourseService {
         }
 
         course.setStatus(STATUS_PUBLISHED);
-        course.setPublicFlag(PUBLIC_COURSE);
         if (course.getPublishTime() == null) {
             course.setPublishTime(LocalDateTime.now());
         }
