@@ -61,7 +61,6 @@ public class TeacherClassServiceImpl implements TeacherClassService {
     private static final String CLASS_CODE_PREFIX = "AI";
     private static final String CLASS_CODE_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final int GENERATED_CODE_LENGTH = 6;
-    private static final int MAX_CLASS_CODE_LENGTH = 30;
     private static final int MAX_GENERATE_RETRY = 20;
 
     private final EduClassRepository eduClassRepository;
@@ -167,14 +166,7 @@ public class TeacherClassServiceImpl implements TeacherClassService {
         }
 
         Long teacherId = getCurrentTeacherId();
-        String classCode;
-        if (org.springframework.util.StringUtils.hasText(req.getClassCode())) {
-            String normalizedCode = normalizeClassCode(req.getClassCode());
-            assertClassCodeUnique(normalizedCode, null);
-            classCode = normalizedCode;
-        } else {
-            classCode = generateUniqueClassCode();
-        }
+        String classCode = generateUniqueClassCode();
 
         EduClassPO eduClassPO = EduClassPO.builder()
                 .className(req.getClassName().trim())
@@ -365,18 +357,6 @@ public class TeacherClassServiceImpl implements TeacherClassService {
         return TeacherClassCodeDTO.builder()
                 .classId(eduClassPO.getId())
                 .classCode(classCode)
-                .build();
-    }
-
-    @Override
-    public TeacherClassCodeDTO updateInviteCode(Long classId, String classCode) {
-        EduClassPO eduClassPO = requireTeacherClass(classId);
-        String normalizedClassCode = normalizeClassCode(classCode);
-        assertClassCodeUnique(normalizedClassCode, eduClassPO.getId());
-        eduClassRepository.updateClassCode(eduClassPO.getId(), normalizedClassCode, getCurrentTeacherId());
-        return TeacherClassCodeDTO.builder()
-                .classId(eduClassPO.getId())
-                .classCode(normalizedClassCode)
                 .build();
     }
 
@@ -909,21 +889,4 @@ public class TeacherClassServiceImpl implements TeacherClassService {
         return code.toString();
     }
 
-    private String normalizeClassCode(String classCode) {
-        if (!StringUtils.hasText(classCode)) {
-            throw new UserErrorException(HttpStatus.BAD_REQUEST, "班级邀请码不能为空");
-        }
-        String normalizedClassCode = classCode.trim();
-        if (normalizedClassCode.length() > MAX_CLASS_CODE_LENGTH) {
-            throw new UserErrorException(HttpStatus.BAD_REQUEST, "班级邀请码长度不能超过30个字符");
-        }
-        return normalizedClassCode;
-    }
-
-    private void assertClassCodeUnique(String classCode, Long currentClassId) {
-        EduClassPO existsClass = eduClassRepository.selectClassByCode(classCode);
-        if (existsClass != null && !Objects.equals(existsClass.getId(), currentClassId)) {
-            throw new UserErrorException(HttpStatus.CONFLICT, "班级邀请码已存在");
-        }
-    }
 }

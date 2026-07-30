@@ -52,8 +52,6 @@ public interface TeacherClassService {
 
     TeacherClassCodeDTO refreshInviteCode(Long classId);
 
-    TeacherClassCodeDTO updateInviteCode(Long classId, String classCode);
-
     PageResult<TeacherClassStudentDTO> listClassStudents(Long classId, Integer pageNum, Integer pageSize, String keyword);
 
     void removeClassStudent(Long classId, Long studentId);

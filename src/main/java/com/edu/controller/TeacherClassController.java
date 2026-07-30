@@ -16,7 +16,6 @@ import com.edu.pojo.dto.UpdateClassReq;
 import com.edu.pojo.dto.UpdateClassStatusReq;
 import com.edu.pojo.dto.TeacherClassListDTO;
 import com.edu.pojo.dto.UpdateCourseDeadlineReq;
-import com.edu.pojo.dto.UpdateClassInviteCodeReq;
 import com.edu.service.TeacherClassService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -112,16 +111,6 @@ public class TeacherClassController {
     public Result<TeacherClassCodeDTO> refreshInviteCode(@PathVariable Long classId) {
         TeacherClassCodeDTO inviteCode = teacherClassService.refreshInviteCode(classId);
         return Result.setResult(HttpStatus.OK, "刷新成功", inviteCode);
-    }
-
-    @Operation(summary = "修改班级邀请码")
-    @PutMapping("/{classId}/invite-code")
-    public Result<TeacherClassCodeDTO> updateInviteCode(
-            @PathVariable Long classId,
-            @RequestBody UpdateClassInviteCodeReq req
-    ) {
-        TeacherClassCodeDTO inviteCode = teacherClassService.updateInviteCode(classId, req == null ? null : req.getClassCode());
-        return Result.setResult(HttpStatus.OK, "修改成功", inviteCode);
     }
 
     @Operation(summary = "查看班级学生列表")

@@ -14,5 +14,4 @@ public class CreateClassReq {
     private String grade;
     private String school;
     private Integer joinType;
-    private String classCode;
 }

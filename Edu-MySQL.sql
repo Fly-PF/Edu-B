@@ -188,3 +188,67 @@ CREATE TABLE edu_study_record
     INDEX idx_student_id (student_id),
     INDEX idx_course_id (course_id)
 ) COMMENT '学生学习进度记录';
+
+DROP TABLE IF EXISTS edu_safety_record;
+CREATE TABLE edu_safety_record
+(
+    id                    BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_module         VARCHAR(50)  NOT NULL COMMENT '来源模块',
+    scene                 VARCHAR(50)  NOT NULL COMMENT '安全场景',
+    user_role             VARCHAR(20)  NOT NULL COMMENT '用户角色',
+    grade_level           VARCHAR(20)  NOT NULL COMMENT '学段',
+    user_id               BIGINT COMMENT '用户ID',
+    class_id              BIGINT COMMENT '班级ID',
+    course_id             BIGINT COMMENT '课程ID',
+    chapter_id            BIGINT COMMENT '章节ID',
+    input_text            TEXT COMMENT '输入文本',
+    output_text           TEXT COMMENT '输出文本',
+    allowed               TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否放行',
+    risk_level            VARCHAR(20)  NOT NULL COMMENT '风险等级',
+    risk_types            TEXT COMMENT '风险类型列表(JSON)',
+    decision              VARCHAR(20)  NOT NULL COMMENT '处置动作',
+    reason                TEXT COMMENT '处置原因',
+    suggestion            TEXT COMMENT '处置建议',
+    processed_text        TEXT COMMENT '处理后文本',
+    evidence_level        VARCHAR(20)  COMMENT 'RAG证据级别',
+    evidence_score        DOUBLE       COMMENT 'RAG证据分值',
+    manual_review_required TINYINT(1)   DEFAULT 0 COMMENT '是否需要人工复审',
+    review_status         VARCHAR(20)  DEFAULT 'NOT_REQUIRED' COMMENT '复审状态',
+    review_by             BIGINT       COMMENT '复审人ID',
+    review_by_name        VARCHAR(50)  COMMENT '复审人姓名',
+    review_time           DATETIME     COMMENT '复审时间',
+    review_comment        TEXT         COMMENT '复审备注',
+    metadata_json         TEXT COMMENT '请求元信息(JSON)',
+    debug_json            TEXT COMMENT '调试信息(JSON)',
+    create_time           DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_create_time (create_time),
+    INDEX idx_risk_level (risk_level),
+    INDEX idx_source_module (source_module),
+    INDEX idx_scene (scene),
+    INDEX idx_manual_review_required (manual_review_required)
+) COMMENT '教育安全检测记录';
+
+-- 四、初始化角色与测试账号
+INSERT IGNORE INTO sys_role (role_name, role_code, sort, remark, deleted, ext_json)
+VALUES
+    ('学生', 'STUDENT', 1, '学生角色', 0, '{}'),
+    ('教师', 'TEACHER', 2, '教师角色', 0, '{}'),
+    ('教研人员', 'RESEARCH', 3, '教研角色', 0, '{}'),
+    ('平台管理员', 'ADMIN', 4, '平台管理员角色', 0, '{}'),
+    ('超级管理员', 'SUPERADMIN', 5, '超级管理员角色', 0, '{}');
+
+INSERT IGNORE INTO sys_user
+(username, password, real_name, phone, email, avatar, user_type, grade, school, status, deleted, ext_json)
+VALUES
+    ('admin001', '$2a$10$h8U0bLZx.PnPeKCfDa3YzOqlniYLVnocgDgpZJ16oPk1Rkmu3kKTe', '平台管理员', NULL, 'admin001@edu-b.com', NULL, 4, NULL, 'Edu-B平台', 1, 0, '{}'),
+    ('teacher001', '$2a$10$E9fSLk9CuGoqX2Y/TbU22e9zed6BT2L5aoLl3beELf4Y9rU0/mQXi', '张老师', NULL, 'teacher001@edu-b.com', NULL, 2, '高中', 'Edu-B示例学校', 1, 0, '{}');
+
+SET @admin_user_id := (SELECT id FROM sys_user WHERE username = 'admin001' LIMIT 1);
+SET @teacher_user_id := (SELECT id FROM sys_user WHERE username = 'teacher001' LIMIT 1);
+SET @admin_role_id := (SELECT id FROM sys_role WHERE role_code = 'ADMIN' LIMIT 1);
+SET @teacher_role_id := (SELECT id FROM sys_role WHERE role_code = 'TEACHER' LIMIT 1);
+
+INSERT IGNORE INTO sys_user_role (user_id, role_id)
+VALUES
+    (@admin_user_id, @admin_role_id),
+    (@teacher_user_id, @teacher_role_id);
