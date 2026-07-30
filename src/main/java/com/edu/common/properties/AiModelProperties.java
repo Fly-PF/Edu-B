@@ -1,20 +1,57 @@
 package com.edu.common.properties;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-@Data
 @Component
-@ConfigurationProperties(prefix = "edu.ai")
-public class AiModelProperties {
-    private OpenAi openai = new OpenAi();
+@ConfigurationProperties(prefix = "edu.ai-model")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AIModelProperties {
+    @Builder.Default
+    private Provider openai = new Provider();
+
+    public enum ModelType {
+        TextModel,
+        MultiModel,
+        TextEmbedModel
+    }
 
     @Data
-    public static class OpenAi {
-        private String apiKey = "";
-        private String baseUrl = "https://api.openai.com/v1";
-        private String model = "gpt-5.6-luna";
-        private Integer timeoutSeconds = 20;
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Provider {
+        private String apiKey;
+        private String baseUrl;
+
+        @Builder.Default
+        private Model chatModel = new Model();
+
+        @Builder.Default
+        private Model textModel = new Model();
+
+        @Builder.Default
+        private Model multiModel = new Model();
+
+        @Builder.Default
+        private Model embeddingModel = new Model();
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Model {
+        private ModelType modelType;
+        private String modelName;
+        private Integer maxHistoryMessageCount;
+    }
+
 }

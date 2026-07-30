@@ -78,7 +78,7 @@ public class CourseServiceImpl implements CourseService {
             boolean matchAll
     ) {
         validateCourseFilter(difficulty, courseType);
-        UserInfoDTO user = currentUser();
+        UserInfoDTO user = currentUserOrNull();
         List<String> selectedTags = parseTags(tags);
         return courseRepository.selectPublishedCourses(keyword, grade, difficulty, courseType).stream()
                 .map(course -> toCourseVO(course, user))
@@ -88,7 +88,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public CourseVO getCourse(Long courseId) {
-        UserInfoDTO user = currentUser();
+        UserInfoDTO user = currentUserOrNull();
         EduCoursePO course = requireCourse(courseId);
         if (!canViewCourse(course, user)) {
             throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该课程");
@@ -98,7 +98,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     public List<ChapterVO> listCourseChapters(Long courseId) {
-        UserInfoDTO user = currentUser();
+        UserInfoDTO user = currentUserOrNull();
         EduCoursePO course = requireCourse(courseId);
         if (!canViewCourse(course, user)) {
             throw new BaseException(HttpStatus.FORBIDDEN, "无权查看该课程目录");
@@ -718,9 +718,9 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private boolean canViewCourse(EduCoursePO course, UserInfoDTO user) {
-        return Objects.equals(course.getTeacherId(), user.getUserId())
-                || isPublishedPublic(course)
-                || hasClassAccess(course, user);
+        if (isPublishedPublic(course)) return true;
+        if (user == null || user.getUserId() == null) return false;
+        return Objects.equals(course.getTeacherId(), user.getUserId()) || hasClassAccess(course, user);
     }
 
     private boolean hasClassAccess(EduCoursePO course, UserInfoDTO user) {
@@ -751,6 +751,11 @@ public class CourseServiceImpl implements CourseService {
             throw new BaseException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
         return user;
+    }
+
+    private UserInfoDTO currentUserOrNull() {
+        UserInfoDTO user = SecurityUtil.getLoginUser();
+        return user != null && user.getUserId() != null ? user : null;
     }
 
     private Integer parseStatus(String status) {
