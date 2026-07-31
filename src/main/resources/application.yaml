@@ -60,3 +60,10 @@ edu:
       max-tokens: ${AI_COMPANION_MAX_TOKENS:560}
       web-search-enabled: ${AI_COMPANION_WEB_SEARCH_ENABLED:true}
       web-search-timeout-seconds: ${AI_COMPANION_WEB_SEARCH_TIMEOUT_SECONDS:8}
+  learning-ai:
+    # OpenAI-compatible chat/completions URL. Keep credentials in environment variables, never commit them.
+    base-url: ${LEARNING_AI_BASE_URL:}
+    api-key: ${LEARNING_AI_API_KEY:}
+    model: ${LEARNING_AI_MODEL:gpt-4.1-mini}
+    # Some OpenAI-compatible providers reject response_format. The gateway retries once without it.
+    json-mode: ${LEARNING_AI_JSON_MODE:true}
