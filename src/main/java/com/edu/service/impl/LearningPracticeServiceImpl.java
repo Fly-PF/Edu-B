@@ -80,8 +80,15 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
         }
         questions.stream()
                 .filter(question -> "SINGLE".equals(question.getQuestionType()))
-                .forEach(question -> answers.computeIfPresent(question.getId(),
-                        (id, answer) -> normalizeSingleChoice(answer)));
+                .forEach(question -> {
+                    String answer = normalizeSingleChoice(answers.get(question.getId()));
+                    int optionCount = readOptions(question.getOptionsJson()).size();
+                    if (!StringUtils.hasText(answer) || answer.charAt(0) - 'A' >= Math.min(optionCount, 4)) {
+                        throw new UserErrorException(HttpStatus.BAD_REQUEST,
+                                "单选题答案只能是已有的 A、B、C、D 选项");
+                    }
+                    answers.put(question.getId(), answer);
+                });
 
         LearningSubmissionPO submission = findSubmission(practiceId, user.getUserId());
         LocalDateTime now = LocalDateTime.now();
@@ -220,12 +227,12 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
             List<String> options = item.getOptions() == null ? List.of() : item.getOptions().stream()
                     .map(value -> value == null ? "" : value.trim()).toList();
             if ("SINGLE".equals(type)) {
-                if (options.size() < 2 || options.stream().anyMatch(String::isBlank)) {
-                    throw new UserErrorException(HttpStatus.BAD_REQUEST, "单选题至少需要两个完整选项");
+                if (options.size() != 4 || options.stream().anyMatch(String::isBlank)) {
+                    throw new UserErrorException(HttpStatus.BAD_REQUEST, "单选题必须设置完整的 A、B、C、D 四个选项");
                 }
                 String answer = item.getReferenceAnswer().trim().toUpperCase();
-                if (!answer.matches("[A-Z]") || answer.charAt(0) - 'A' >= options.size()) {
-                    throw new UserErrorException(HttpStatus.BAD_REQUEST, "单选题正确答案必须对应已有选项");
+                if (!answer.matches("[A-D]")) {
+                    throw new UserErrorException(HttpStatus.BAD_REQUEST, "单选题正确答案只能是 A、B、C 或 D");
                 }
             }
             LearningQuestionPO question = new LearningQuestionPO();
@@ -503,19 +510,14 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
         return value == null ? "" : value.trim().toUpperCase();
     }
 
-    // Accept older saved answers such as "1" as well as the current A/B/C/D form.
+    // Accept older saved answers such as "1" while preventing invalid characters from entering new records.
     private String normalizeSingleChoice(String value) {
         String normalized = normalize(value);
-        if (!normalized.matches("\\d+")) return normalized;
-        int choiceIndex;
-        try {
-            choiceIndex = Integer.parseInt(normalized);
-        } catch (NumberFormatException ignored) {
-            return normalized;
+        if (normalized.matches("[A-D]")) return normalized;
+        if (normalized.matches("[1-4]")) {
+            return String.valueOf((char) ('A' + Integer.parseInt(normalized) - 1));
         }
-        return choiceIndex >= 1 && choiceIndex <= 26
-                ? String.valueOf((char) ('A' + choiceIndex - 1))
-                : normalized;
+        return "";
     }
 
     private String displayAnswer(LearningQuestionPO question, String answer) {
