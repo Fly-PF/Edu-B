@@ -1,20 +1,20 @@
 edu:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: 127.0.0.1
+    host: 192.168.40.135
     port: 3306
     database: edu
     username: root
     password: root
   redis:
-    host: 127.0.0.1
+    host: 192.168.40.135
     port: 6379
     password: root
     database: 6
   minio:
-    endpoint: http://127.0.0.1:9000
-    access_key: minioadmin
-    secret_key: minioadmin
+    endpoint: http://192.168.40.135:9000
+    access_key: root
+    secret_key: rootroot
     bucker_name: edu
     public_base_url: http://localhost:8080
     avatar:
@@ -38,7 +38,7 @@ edu:
         metric_type: COSINE
   ai-model:
     openai:
-      api-key: sk-041315448c034a198794b90818510324
+      api-key: ${OPENAI_API_KEY}
       base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
       chat-model:
         max-history-message-count: 20

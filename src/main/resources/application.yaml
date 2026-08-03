@@ -20,7 +20,7 @@ spring:
       max-file-size: 1GB
       max-request-size: 1GB
   profiles:
-    active: local
+    active: dev
   main:
     allow-circular-references: true
   datasource:

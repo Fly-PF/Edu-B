@@ -1,1 +1,84 @@
-﻿
+﻿edu:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: 192.168.40.135
+    port: 3306
+    database: edu
+    username: root
+    password: root
+  redis:
+    host: 192.168.40.135
+    port: 6379
+    password: root
+    database: 6
+  minio:
+    endpoint: http://192.168.40.135:9000
+    access_key: root
+    secret_key: rootroot
+    bucker_name: edu
+    public_base_url: http://192.168.40.135:8080
+    avatar:
+      avatar_files_base_url: avatar/files/
+      default_avatar: avatar/default_avatar.png
+    rag:
+      rag_files_base_url: rag/files/
+      max_rag_file_size: 100MB
+      max_ref_rag_kb_count: 10
+      max_ref_rag_doc_count: 100
+  milvus:
+    endpoint: http://192.168.40.135:19530
+    token: rootroot
+    database_name: Edu
+    rag:
+      top_k: 8
+      score_threshold: 0.6
+      collection_name: rag_chunk
+      vector:
+        dimension: 2048
+        metric_type: COSINE
+  ai-model:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      chat-model:
+        max-history-message-count: 20
+        model-type: multimodel
+        model-name: qwen3.5-omni-flash
+      text-model:
+        max-history-message-count: 200
+        model-type: textmodel
+        model-name: qwen3.7-plus
+      multi-model:
+        max-history-message-count: 20
+        model-type: multimodel
+        model-name: qwen3.5-omni-flash
+      embedding-model:
+        max-history-message-count: 20
+        model-type: textembedmodel
+        model-name: qwen3.7-text-embedding
+
+  # jwt、mail 不用改动，本地自测完全通用
+  jwt:
+    secret-key: abcdefghijklmnopqabcdefghijklmnopq
+    expire-time: 72000000000
+    jwt-name: Authorization
+  mail:
+    from-name: Edu-B
+    captcha:
+      length: 6
+      expire-minutes: 5
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-5.6-luna}
+      timeout-seconds: ${OPENAI_TIMEOUT_SECONDS:20}
+    face:
+      tencent:
+        secret-id: ${TENCENT_FACE_SECRET_ID:}
+        secret-key: ${TENCENT_FACE_SECRET_KEY:}
+        region: ${TENCENT_FACE_REGION:ap-guangzhou}
+        endpoint: ${TENCENT_FACE_ENDPOINT:iai.tencentcloudapi.com}
+        version: ${TENCENT_FACE_VERSION:2020-03-03}
+        compare-threshold: ${TENCENT_FACE_COMPARE_THRESHOLD:80}
+        timeout-seconds: ${TENCENT_FACE_TIMEOUT_SECONDS:20}
