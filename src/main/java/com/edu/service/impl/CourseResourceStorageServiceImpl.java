@@ -54,7 +54,7 @@ public class CourseResourceStorageServiceImpl implements CourseResourceStorageSe
 
     public CourseResourceStorageServiceImpl(
             @Value("${edu.course-storage.local-path:uploads}") String localPath,
-            @Value("${edu.course-storage.public-base-url:http://localhost:8080}") String publicBaseUrl
+            @Value("${edu.course-storage.public-base-url:}") String publicBaseUrl
     ) {
         this.uploadRoot = Paths.get(localPath).toAbsolutePath().normalize();
         this.publicBaseUrl = trimEndSlash(publicBaseUrl);

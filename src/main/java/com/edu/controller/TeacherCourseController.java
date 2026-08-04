@@ -8,6 +8,7 @@ import com.edu.pojo.dto.course.CourseCreateRequest;
 import com.edu.pojo.dto.course.CourseUpdateRequest;
 import com.edu.pojo.dto.course.ResourceCreateRequest;
 import com.edu.pojo.dto.course.ResourceUpdateRequest;
+import com.edu.pojo.dto.course.BlockProjectResourceCreateRequest;
 import com.edu.pojo.vo.course.ChapterVO;
 import com.edu.pojo.vo.course.CourseVO;
 import com.edu.pojo.vo.course.ResourceVO;
@@ -151,6 +152,17 @@ public class TeacherCourseController {
                 "资源已添加",
                 courseService.createResource(courseId, chapterId, request)
         );
+    }
+
+    @Operation(summary = "添加公开积木项目资源")
+    @PostMapping("/{courseId}/chapters/{chapterId}/block-projects")
+    public Result<ResourceVO> createBlockProjectResource(
+            @PathVariable Long courseId,
+            @PathVariable Long chapterId,
+            @Valid @RequestBody BlockProjectResourceCreateRequest request
+    ) {
+        return Result.setResult(HttpStatus.CREATED, "积木项目已添加",
+                courseService.createBlockProjectResource(courseId, chapterId, request));
     }
 
     @Operation(summary = "上传课程资源")

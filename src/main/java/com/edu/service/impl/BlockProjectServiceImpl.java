@@ -84,7 +84,8 @@ public class BlockProjectServiceImpl implements BlockProjectService {
                 .workspaceJson(request.getWorkspaceJson())
                 .stageJson(request.getStageJson())
                 .thumbnailData(request.getThumbnailData())
-                .visibility(PRIVATE)
+                .visibility(Boolean.TRUE.equals(request.getPublished()) ? PUBLIC : PRIVATE)
+                .publishedTime(Boolean.TRUE.equals(request.getPublished()) ? LocalDateTime.now() : null)
                 .remixCount(0)
                 .viewCount(0)
                 .deleted(NOT_DELETED)
@@ -101,6 +102,10 @@ public class BlockProjectServiceImpl implements BlockProjectService {
         project.setWorkspaceJson(request.getWorkspaceJson());
         project.setStageJson(request.getStageJson());
         project.setThumbnailData(request.getThumbnailData());
+        project.setVisibility(Boolean.TRUE.equals(request.getPublished()) ? PUBLIC : PRIVATE);
+        if (Boolean.TRUE.equals(request.getPublished()) && project.getPublishedTime() == null) {
+            project.setPublishedTime(LocalDateTime.now());
+        }
         projectMapper.updateById(project);
         return toView(project, true);
     }

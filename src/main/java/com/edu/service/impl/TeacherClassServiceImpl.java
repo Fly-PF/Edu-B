@@ -26,6 +26,7 @@ import com.edu.pojo.po.EduCourseClassPO;
 import com.edu.pojo.po.EduCoursePO;
 import com.edu.pojo.po.EduStudyRecordPO;
 import com.edu.pojo.po.SysUserPO;
+import com.edu.pojo.vo.course.ChapterResourceProgressVO;
 import com.edu.repository.EduChapterRepository;
 import com.edu.repository.EduClassRepository;
 import com.edu.repository.EduClassStudentRepository;
@@ -34,6 +35,7 @@ import com.edu.repository.EduCourseRepository;
 import com.edu.repository.EduStudyRecordRepository;
 import com.edu.repository.SysUserRepository;
 import com.edu.service.TeacherClassService;
+import com.edu.service.CourseResourceProgressService;
 import com.edu.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -71,6 +73,7 @@ public class TeacherClassServiceImpl implements TeacherClassService {
     private final EduChapterRepository eduChapterRepository;
     private final EduStudyRecordRepository eduStudyRecordRepository;
     private final SysUserRepository sysUserRepository;
+    private final CourseResourceProgressService resourceProgressService;
 
     @Override
     public Long getCurrentTeacherId() {
@@ -569,7 +572,9 @@ public class TeacherClassServiceImpl implements TeacherClassService {
         Set<Long> chapterIds = chapters.stream()
                 .map(EduChapterPO::getId)
                 .collect(Collectors.toSet());
-        Map<Long, EduStudyRecordPO> recordsByChapter = eduStudyRecordRepository.selectRecordsByStudentId(studentId)
+        List<EduStudyRecordPO> effectiveRecords = applyResourceProgress(
+                eduStudyRecordRepository.selectRecordsByStudentId(studentId), studentId, courseId, courseClassPO.getId());
+        Map<Long, EduStudyRecordPO> recordsByChapter = effectiveRecords
                 .stream()
                 .filter(record -> Objects.equals(record.getCourseId(), courseId))
                 .filter(record -> chapterIds.contains(record.getChapterId()))
@@ -635,7 +640,9 @@ public class TeacherClassServiceImpl implements TeacherClassService {
             List<EduStudyRecordPO> records
     ) {
         TeacherClassStudentDTO student = toClassStudentDTO(classStudentPO);
-        Map<Long, EduStudyRecordPO> recordsByChapter = records.stream()
+        List<EduStudyRecordPO> effectiveRecords = applyResourceProgress(
+                records, classStudentPO.getStudentId(), course.getId(), courseClassPO.getId());
+        Map<Long, EduStudyRecordPO> recordsByChapter = effectiveRecords.stream()
                 .collect(Collectors.toMap(
                         EduStudyRecordPO::getChapterId,
                         record -> record,
@@ -665,6 +672,25 @@ public class TeacherClassServiceImpl implements TeacherClassService {
                 .studyStatus(studyStatus)
                 .lastStudyTime(formatDateTime(getLastStudyTime(chapterRecords)))
                 .build();
+    }
+
+    private List<EduStudyRecordPO> applyResourceProgress(List<EduStudyRecordPO> legacyRecords,
+                                                          Long studentId, Long courseId, Long assignmentId) {
+        Map<Long, EduStudyRecordPO> byChapter = legacyRecords.stream()
+                .filter(record -> Objects.equals(record.getCourseId(), courseId))
+                .collect(Collectors.toMap(EduStudyRecordPO::getChapterId, record -> record, this::newerRecord));
+        for (ChapterResourceProgressVO summary : resourceProgressService.summarizeChapters(studentId, courseId, assignmentId)) {
+            if (!Boolean.TRUE.equals(summary.getHasResourceRecords())) continue;
+            EduStudyRecordPO previous = byChapter.get(summary.getChapterId());
+            byChapter.put(summary.getChapterId(), EduStudyRecordPO.builder()
+                    .id(previous == null ? null : previous.getId())
+                    .studentId(studentId).courseId(courseId).chapterId(summary.getChapterId())
+                    .progress(summary.getProgress()).finishStatus(summary.getFinishStatus())
+                    .studyDuration(previous == null ? 0 : defaultNumber(previous.getStudyDuration()))
+                    .lastStudyTime(previous == null ? null : previous.getLastStudyTime())
+                    .resourceId(previous == null ? null : previous.getResourceId()).build());
+        }
+        return byChapter.values().stream().toList();
     }
 
     private TeacherStudentCourseStudyRecordDTO.ChapterStudyRecord buildChapterStudyRecord(

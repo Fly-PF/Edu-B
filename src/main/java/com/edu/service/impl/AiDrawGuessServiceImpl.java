@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -82,8 +83,12 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
         )));
 
         try {
+            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+            requestFactory.setConnectTimeout(15_000);
+            requestFactory.setReadTimeout(90_000);
             String body = RestClient.builder()
                     .baseUrl(trimEndSlash(openAi.getBaseUrl()))
+                    .requestFactory(requestFactory)
                     .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + openAi.getApiKey())
                     .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                     .build()

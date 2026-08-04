@@ -15,8 +15,9 @@ public class BlockProjectSaveRequest {
     @Size(max = 1000000)
     private String workspaceJson;
     @NotBlank
-    @Size(max = 200000)
+    @Size(max = 5000000, message = "舞台资源数据不能超过5000000个字符")
     private String stageJson;
     @Size(max = 1000000)
     private String thumbnailData;
+    private Boolean published;
 }
