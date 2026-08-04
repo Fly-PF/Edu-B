@@ -38,13 +38,14 @@ public class AiCompanionWebSearchServiceImpl implements AiCompanionWebSearchServ
 
     @Override
     public List<AiCompanionWebSource> search(String question) {
-        if (!properties.isWebSearchEnabled() || !isSafeQuery(question)) {
+        if (!properties.isWebSearchEnabled() || !StringUtils.hasText(properties.getWebSearchUrl()) || !isSafeQuery(question)) {
             return List.of();
         }
         try {
             String query = URLEncoder.encode(question.trim().substring(0, Math.min(question.trim().length(), MAX_QUESTION_LENGTH)), StandardCharsets.UTF_8);
+            String separator = properties.getWebSearchUrl().contains("?") ? "&" : "?";
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://www.bing.com/search?format=rss&q=" + query))
+                    .uri(URI.create(properties.getWebSearchUrl() + separator + "format=rss&q=" + query))
                     .timeout(Duration.ofSeconds(Math.max(3, properties.getWebSearchTimeoutSeconds())))
                     .header("User-Agent", "EduF-CourseCompanion/1.0")
                     .GET()

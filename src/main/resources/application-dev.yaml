@@ -1,4 +1,7 @@
 edu:
+  course-storage:
+    local-path: ${COURSE_STORAGE_LOCAL_PATH:uploads}
+    public-base-url: ${COURSE_STORAGE_PUBLIC_BASE_URL:http://localhost:8080}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: 192.168.40.135
@@ -68,6 +71,8 @@ edu:
       length: 6
       expire-minutes: 5
   ai:
+    companion:
+      api-url: ${AI_COMPANION_API_URL:http://localhost:11434/v1/chat/completions}
     openai:
       api-key: ${OPENAI_API_KEY:}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}

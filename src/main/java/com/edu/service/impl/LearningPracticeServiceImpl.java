@@ -267,7 +267,7 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
         return PracticeListItemVO.builder()
                 .id(practice.getId())
                 .courseId(practice.getCourseId())
-                .courseName(course == null ? fallbackCourseName(practice.getCourseId()) : course.title())
+                .courseName(course == null ? "课程练习" : course.title())
                 .title(practice.getPracticeTitle())
                 .intro(practice.getPracticeIntro())
                 .totalScore(practice.getTotalScore())
@@ -287,7 +287,7 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
         return StudentPracticeDetailVO.builder()
                 .id(practice.getId())
                 .courseId(practice.getCourseId())
-                .courseName(course == null ? fallbackCourseName(practice.getCourseId()) : course.title())
+                .courseName(course == null ? "课程练习" : course.title())
                 .title(practice.getPracticeTitle())
                 .intro(practice.getPracticeIntro())
                 .totalScore(practice.getTotalScore())
@@ -326,7 +326,8 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
                 .practiceId(practice.getId())
                 .practiceTitle(practice.getPracticeTitle())
                 .courseId(practice.getCourseId())
-                .courseName(course == null ? fallbackCourseName(practice.getCourseId()) : course.title())
+                .courseName(course == null ? "课程练习" : course.title())
+                .totalScore(practice.getTotalScore())
                 .studentId(submission.getStudentId())
                 .studentName(submission.getStudentName())
                 .autoScore(submission.getAutoScore())
@@ -543,16 +544,6 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
                 courseId
         );
         return courses.isEmpty() ? null : courses.getFirst();
-    }
-
-    private String fallbackCourseName(Long courseId) {
-        return switch (courseId == null ? 0 : courseId.intValue()) {
-            case 1 -> "人工智能基础与应用";
-            case 2 -> "AI 校园项目实践";
-            case 3 -> "Python 与图像分类";
-            case 4 -> "机器学习实验入门";
-            default -> "课程练习";
-        };
     }
 
     private record CourseBrief(Long id, String title, Long teacherId) {

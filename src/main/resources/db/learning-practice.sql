@@ -47,59 +47,83 @@ CREATE TABLE IF NOT EXISTS edu_learning_submission (
 );
 
 INSERT INTO edu_learning_practice (course_id, practice_title, practice_intro, total_score, status)
-SELECT 1, '人工智能基础与应用 - 认识 AI', '完成基础概念辨析和学习反思，提交后等待老师点评。', 100, 1
-WHERE NOT EXISTS (SELECT 1 FROM edu_learning_practice WHERE course_id = 1);
+SELECT c.id, '人工智能基础与应用 - 认识 AI', '完成基础概念辨析和学习反思，提交后等待老师点评。', 100, 1
+FROM edu_course c
+WHERE c.course_name = '人工智能基础与应用'
+  AND NOT EXISTS (SELECT 1 FROM edu_learning_practice p WHERE p.course_id = c.id);
 
 INSERT INTO edu_learning_practice (course_id, practice_title, practice_intro, total_score, status)
-SELECT 2, '校园 AI 项目设计练习', '围绕校园中的真实问题，设计一个负责任的 AI 小项目。', 100, 1
-WHERE NOT EXISTS (SELECT 1 FROM edu_learning_practice WHERE course_id = 2);
+SELECT c.id, '校园 AI 项目设计练习', '围绕校园中的真实问题，设计一个负责任的 AI 小项目。', 100, 1
+FROM edu_course c
+WHERE c.course_name = 'AI 校园项目实践'
+  AND NOT EXISTS (SELECT 1 FROM edu_learning_practice p WHERE p.course_id = c.id);
 
 INSERT INTO edu_learning_practice (course_id, practice_title, practice_intro, total_score, status)
-SELECT 3, 'Python 与图像分类基础练习', '检查 Python 数据处理和图像分类流程的理解。', 100, 1
-WHERE NOT EXISTS (SELECT 1 FROM edu_learning_practice WHERE course_id = 3);
+SELECT c.id, 'Python 与图像分类基础练习', '检查 Python 数据处理和图像分类流程的理解。', 100, 1
+FROM edu_course c
+WHERE c.course_name = 'Python 与图像分类'
+  AND NOT EXISTS (SELECT 1 FROM edu_learning_practice p WHERE p.course_id = c.id);
 
 INSERT INTO edu_learning_practice (course_id, practice_title, practice_intro, total_score, status)
-SELECT 4, '机器学习实验入门练习', '根据实验流程完成选择与简答，并提交实验观察。', 100, 1
-WHERE NOT EXISTS (SELECT 1 FROM edu_learning_practice WHERE course_id = 4);
+SELECT c.id, '机器学习实验入门练习', '根据实验流程完成选择与简答，并提交实验观察。', 100, 1
+FROM edu_course c
+WHERE c.course_name = '机器学习实验入门'
+  AND NOT EXISTS (SELECT 1 FROM edu_learning_practice p WHERE p.course_id = c.id);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SINGLE', '下列哪一项最能说明人工智能在学习中的合理用途？', '["A. 直接代替学生完成全部作业","B. 帮助学生理解概念并给出学习建议","C. 不经核实地输出所有结论","D. 收集其他同学的隐私信息"]', 'B', 'AI 可以辅助理解和学习，但不能代替学生完成学习任务，也不能侵犯隐私。', 30, 1
-FROM edu_learning_practice p WHERE p.course_id = 1
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = '人工智能基础与应用'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 1);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SHORT', '请用自己的话说明：使用 AI 学习工具时，为什么还需要核对回答来源？', NULL, '开放题', '可以从信息准确性、课程适配性和避免模型编造等角度说明。', 70, 2
-FROM edu_learning_practice p WHERE p.course_id = 1
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = '人工智能基础与应用'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 2);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SINGLE', '设计校园 AI 项目前，最应该先明确什么？', '["A. 页面颜色","B. 要解决的真实问题和使用对象","C. 项目名称","D. 宣传海报"]', 'B', '先明确问题和用户，后续的数据、功能和评价方式才有依据。', 35, 1
-FROM edu_learning_practice p WHERE p.course_id = 2
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = 'AI 校园项目实践'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 1);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SHORT', '请选择一个校园场景，写出你想用 AI 帮助解决的问题，并说明它可能带来的价值。', NULL, '开放题', '可从学习、校园服务、环保、文化传承等场景展开，答案需具体、可实施。', 65, 2
-FROM edu_learning_practice p WHERE p.course_id = 2
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = 'AI 校园项目实践'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 2);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SINGLE', '在图像分类任务中，训练数据最重要的特点是？', '["A. 全部来自同一种图片","B. 标签清晰且样本有代表性","C. 图片越大越好","D. 不需要检查错误标签"]', 'B', '高质量、带正确标签且有代表性的数据，是训练可靠模型的基础。', 40, 1
-FROM edu_learning_practice p WHERE p.course_id = 3
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = 'Python 与图像分类'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 1);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SHORT', '请写出数据处理流程中至少两个需要检查的环节，并说明原因。', NULL, '开放题', '可回答缺失值、重复值、标签错误、数据格式和数据划分等。', 60, 2
-FROM edu_learning_practice p WHERE p.course_id = 3
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = 'Python 与图像分类'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 2);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SINGLE', '完成机器学习实验后，下面哪一步最适合用来判断模型是否可靠？', '["A. 只看训练集是否全部答对","B. 用未参与训练的数据进行评估","C. 只比较代码行数","D. 让模型自己给自己打分"]', 'B', '应使用独立的验证或测试数据评估模型的泛化能力。', 40, 1
-FROM edu_learning_practice p WHERE p.course_id = 4
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = '机器学习实验入门'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 1);
 
 INSERT INTO edu_learning_question (practice_id, question_type, question_content, options_json, reference_answer, answer_explanation, question_score, sort_order)
 SELECT p.id, 'SHORT', '请描述一次机器学习实验的基本流程，并指出你最想进一步验证的一项内容。', NULL, '开放题', '可包含数据准备、训练、评估和分析改进等步骤。', 60, 2
-FROM edu_learning_practice p WHERE p.course_id = 4
+FROM edu_learning_practice p
+JOIN edu_course c ON c.id = p.course_id
+WHERE c.course_name = '机器学习实验入门'
   AND NOT EXISTS (SELECT 1 FROM edu_learning_question q WHERE q.practice_id = p.id AND q.sort_order = 2);
 
 -- Correct previously imported rows as well as seed new databases.
@@ -108,28 +132,28 @@ SET practice_title = '人工智能基础与应用 - 认识 AI',
     practice_intro = '完成基础概念辨析和学习反思，提交后等待老师点评。',
     total_score = 100,
     status = 1
-WHERE course_id = 1;
+WHERE course_id IN (SELECT id FROM edu_course WHERE course_name = '人工智能基础与应用');
 
 UPDATE edu_learning_practice
 SET practice_title = '校园 AI 项目设计练习',
     practice_intro = '围绕校园中的真实问题，设计一个负责任的 AI 小项目。',
     total_score = 100,
     status = 1
-WHERE course_id = 2;
+WHERE course_id IN (SELECT id FROM edu_course WHERE course_name = 'AI 校园项目实践');
 
 UPDATE edu_learning_practice
 SET practice_title = 'Python 与图像分类基础练习',
     practice_intro = '检查 Python 数据处理和图像分类流程的理解。',
     total_score = 100,
     status = 1
-WHERE course_id = 3;
+WHERE course_id IN (SELECT id FROM edu_course WHERE course_name = 'Python 与图像分类');
 
 UPDATE edu_learning_practice
 SET practice_title = '机器学习实验入门练习',
     practice_intro = '根据实验流程完成选择与简答，并提交实验观察。',
     total_score = 100,
     status = 1
-WHERE course_id = 4;
+WHERE course_id IN (SELECT id FROM edu_course WHERE course_name = '机器学习实验入门');
 
 UPDATE edu_learning_question
 SET question_type = 'SINGLE',
@@ -138,7 +162,11 @@ SET question_type = 'SINGLE',
     reference_answer = 'B',
     answer_explanation = 'AI 可以辅助理解和学习，但不能代替学生完成学习任务，也不能侵犯隐私。',
     question_score = 30
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 1) AND sort_order = 1;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = '人工智能基础与应用'
+) AND sort_order = 1;
 
 UPDATE edu_learning_question
 SET question_type = 'SHORT',
@@ -147,7 +175,11 @@ SET question_type = 'SHORT',
     reference_answer = '开放题',
     answer_explanation = '可以从信息准确性、课程适配性和避免模型编造等角度说明。',
     question_score = 70
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 1) AND sort_order = 2;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = '人工智能基础与应用'
+) AND sort_order = 2;
 
 UPDATE edu_learning_question
 SET question_type = 'SINGLE',
@@ -156,7 +188,11 @@ SET question_type = 'SINGLE',
     reference_answer = 'B',
     answer_explanation = '先明确问题和用户，后续的数据、功能和评价方式才有依据。',
     question_score = 35
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 2) AND sort_order = 1;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = 'AI 校园项目实践'
+) AND sort_order = 1;
 
 UPDATE edu_learning_question
 SET question_type = 'SHORT',
@@ -165,7 +201,11 @@ SET question_type = 'SHORT',
     reference_answer = '开放题',
     answer_explanation = '可从学习、校园服务、环保、文化传承等场景展开，答案需具体、可实施。',
     question_score = 65
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 2) AND sort_order = 2;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = 'AI 校园项目实践'
+) AND sort_order = 2;
 
 UPDATE edu_learning_question
 SET question_type = 'SINGLE',
@@ -174,7 +214,11 @@ SET question_type = 'SINGLE',
     reference_answer = 'B',
     answer_explanation = '高质量、带正确标签且有代表性的数据，是训练可靠模型的基础。',
     question_score = 40
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 3) AND sort_order = 1;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = 'Python 与图像分类'
+) AND sort_order = 1;
 
 UPDATE edu_learning_question
 SET question_type = 'SHORT',
@@ -183,7 +227,11 @@ SET question_type = 'SHORT',
     reference_answer = '开放题',
     answer_explanation = '可回答缺失值、重复值、标签错误、数据格式和数据划分等。',
     question_score = 60
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 3) AND sort_order = 2;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = 'Python 与图像分类'
+) AND sort_order = 2;
 
 UPDATE edu_learning_question
 SET question_type = 'SINGLE',
@@ -192,7 +240,11 @@ SET question_type = 'SINGLE',
     reference_answer = 'B',
     answer_explanation = '应使用独立的验证或测试数据评估模型的泛化能力。',
     question_score = 40
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 4) AND sort_order = 1;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = '机器学习实验入门'
+) AND sort_order = 1;
 
 UPDATE edu_learning_question
 SET question_type = 'SHORT',
@@ -201,4 +253,8 @@ SET question_type = 'SHORT',
     reference_answer = '开放题',
     answer_explanation = '可包含数据准备、训练、评估和分析改进等步骤。',
     question_score = 60
-WHERE practice_id IN (SELECT id FROM edu_learning_practice WHERE course_id = 4) AND sort_order = 2;
+WHERE practice_id IN (
+    SELECT p.id FROM edu_learning_practice p
+    JOIN edu_course c ON c.id = p.course_id
+    WHERE c.course_name = '机器学习实验入门'
+) AND sort_order = 2;

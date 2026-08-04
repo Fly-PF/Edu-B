@@ -53,12 +53,14 @@ edu:
   ai:
     companion:
       enabled: ${AI_COMPANION_ENABLED:true}
-      api-url: ${AI_COMPANION_API_URL:http://localhost:11434/v1/chat/completions}
+      api-url: ${AI_COMPANION_API_URL:}
       api-key: ${AI_COMPANION_API_KEY:}
+      api-key-required: ${AI_COMPANION_API_KEY_REQUIRED:false}
       model: ${AI_COMPANION_MODEL:qwen2.5:3b}
       timeout-seconds: ${AI_COMPANION_TIMEOUT_SECONDS:90}
       max-tokens: ${AI_COMPANION_MAX_TOKENS:560}
       web-search-enabled: ${AI_COMPANION_WEB_SEARCH_ENABLED:true}
+      web-search-url: ${AI_COMPANION_WEB_SEARCH_URL:https://www.bing.com/search}
       web-search-timeout-seconds: ${AI_COMPANION_WEB_SEARCH_TIMEOUT_SECONDS:8}
   learning-ai:
     # OpenAI-compatible chat/completions URL. Keep credentials in environment variables, never commit them.

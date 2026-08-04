@@ -14,6 +14,7 @@ public class TeacherPracticeSubmissionVO {
     private String practiceTitle;
     private Long courseId;
     private String courseName;
+    private Integer totalScore;
     private Long studentId;
     private String studentName;
     private Integer autoScore;

@@ -37,7 +37,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             List<AiCompanionMessageVO> history,
             String question
     ) {
-        if (!properties.isEnabled() || requiresApiKeyWithoutOne()) {
+        if (!properties.isEnabled() || isBlank(properties.getApiUrl()) || requiresApiKeyWithoutOne()) {
             return modelUnavailable(context, "MODEL_DISABLED");
         }
 
@@ -214,22 +214,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
     }
 
     private boolean requiresApiKeyWithoutOne() {
-        return !isLocalOllama() && isBlank(properties.getApiKey());
-    }
-
-    private boolean isLocalOllama() {
-        if (isBlank(properties.getApiUrl())) {
-            return false;
-        }
-        try {
-            URI uri = URI.create(properties.getApiUrl());
-            String host = uri.getHost();
-            return "localhost".equalsIgnoreCase(host)
-                    || "127.0.0.1".equals(host)
-                    || "::1".equals(host);
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
+        return properties.isApiKeyRequired() && isBlank(properties.getApiKey());
     }
 
     private String buildEvidenceInstructions(AiCompanionContextVO context) {
