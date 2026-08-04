@@ -6,6 +6,7 @@ import com.edu.mapper.LearningPracticeMapper;
 import com.edu.mapper.LearningQuestionMapper;
 import com.edu.mapper.LearningSubmissionMapper;
 import com.edu.pojo.dto.UserInfoDTO;
+import com.edu.pojo.dto.practice.PracticeAiDraftRequest;
 import com.edu.pojo.dto.practice.PracticeAnswerRequest;
 import com.edu.pojo.dto.practice.PracticeReviewRequest;
 import com.edu.pojo.dto.practice.PracticePublishRequest;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -133,6 +135,48 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
     }
 
     @Override
+    public TeacherPracticeSubmissionVO getTeacherSubmission(Long submissionId) {
+        UserInfoDTO user = requireRole("TEACHER");
+        LearningSubmissionPO submission = requireTeacherSubmission(submissionId, user);
+        LearningPracticePO practice = requirePractice(submission.getPracticeId());
+        return toTeacherSubmission(submission, practice);
+    }
+
+    @Override
+    @Transactional
+    public TeacherPracticeSubmissionVO saveAiReviewDraft(Long submissionId, PracticeAiDraftRequest request) {
+        UserInfoDTO user = requireRole("TEACHER");
+        LearningSubmissionPO submission = requireTeacherSubmission(submissionId, user);
+        if (!"SUBMITTED".equals(submission.getStatus())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "已完成批改的练习不能再保存 AI 草稿");
+        }
+        LearningPracticePO practice = requirePractice(submission.getPracticeId());
+        LearningQuestionPO question = questionMapper.selectById(request.getQuestionId());
+        if (question == null || !Objects.equals(question.getPracticeId(), practice.getId())
+                || !"SHORT".equals(question.getQuestionType())) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "只能为当前练习的开放题保存 AI 草稿");
+        }
+        int maxScore = question.getQuestionScore() == null ? 0 : question.getQuestionScore();
+        if (request.getScore() > maxScore) {
+            throw new UserErrorException(HttpStatus.BAD_REQUEST, "AI 建议分数不能超过本题满分 " + maxScore + " 分");
+        }
+
+        Map<Long, QuestionReviewDetail> reviews = new LinkedHashMap<>(
+                readQuestionReviews(submission.getQuestionReviewJson()));
+        reviews.put(request.getQuestionId(), new QuestionReviewDetail(
+                request.getScore(),
+                request.getFeedback().trim(),
+                "AI_DRAFT",
+                StringUtils.hasText(request.getReasoning()) ? request.getReasoning().trim() : null,
+                request.getConfidence()
+        ));
+        submission.setQuestionReviewJson(writeQuestionReviews(reviews));
+        submission.setUpdateTime(LocalDateTime.now());
+        submissionMapper.updateById(submission);
+        return toTeacherSubmission(submission, practice);
+    }
+
+    @Override
     @Transactional
     public TeacherPracticeSubmissionVO reviewSubmission(Long submissionId, PracticeReviewRequest request) {
         UserInfoDTO user = requireRole("TEACHER");
@@ -157,6 +201,7 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
             throw new UserErrorException(HttpStatus.BAD_REQUEST, "请完成每道开放题的评分和反馈");
         }
 
+        Map<Long, QuestionReviewDetail> existingReviews = readQuestionReviews(submission.getQuestionReviewJson());
         Map<Long, QuestionReviewDetail> questionReviews = new LinkedHashMap<>();
         int manualScore = 0;
         for (LearningQuestionPO question : openQuestions) {
@@ -167,8 +212,18 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
                         "开放题得分不能超过该题满分 " + maxScore + " 分");
             }
             manualScore += item.getScore();
-            questionReviews.put(question.getId(),
-                    new QuestionReviewDetail(item.getScore(), item.getFeedback().trim()));
+            QuestionReviewDetail previous = existingReviews.get(question.getId());
+            String source = previous != null && StringUtils.hasText(previous.source())
+                    && previous.source().startsWith("AI")
+                    ? "AI_CONFIRMED"
+                    : "TEACHER";
+            questionReviews.put(question.getId(), new QuestionReviewDetail(
+                    item.getScore(),
+                    item.getFeedback().trim(),
+                    source,
+                    previous == null ? null : previous.reasoning(),
+                    previous == null ? null : previous.confidence()
+            ));
         }
         int totalScore = (submission.getAutoScore() == null ? 0 : submission.getAutoScore()) + manualScore;
         if (!Objects.equals(request.getScore(), totalScore)) {
@@ -349,6 +404,15 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
                                 .teacherFeedback(questionReviews.containsKey(question.getId())
                                         ? questionReviews.get(question.getId()).feedback()
                                         : null)
+                                .reviewSource(questionReviews.containsKey(question.getId())
+                                        ? questionReviews.get(question.getId()).source()
+                                        : null)
+                                .aiReasoning(questionReviews.containsKey(question.getId())
+                                        ? questionReviews.get(question.getId()).reasoning()
+                                        : null)
+                                .aiConfidence(questionReviews.containsKey(question.getId())
+                                        ? questionReviews.get(question.getId()).confidence()
+                                        : null)
                                 .build())
                         .toList())
                 .build();
@@ -369,6 +433,16 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
         if (course == null || !Objects.equals(course.teacherId(), teacherId)) {
             throw new UserErrorException(HttpStatus.FORBIDDEN, "只能批改自己课程的学生练习");
         }
+    }
+
+    private LearningSubmissionPO requireTeacherSubmission(Long submissionId, UserInfoDTO user) {
+        LearningSubmissionPO submission = submissionMapper.selectById(submissionId);
+        if (submission == null) {
+            throw new UserErrorException(HttpStatus.NOT_FOUND, "学生提交不存在");
+        }
+        LearningPracticePO practice = requirePractice(submission.getPracticeId());
+        requireTeacherCourse(practice.getCourseId(), user.getUserId());
+        return submission;
     }
 
     private LearningPracticePO requirePractice(Long practiceId) {
@@ -445,7 +519,10 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
             int maxScore = question.getQuestionScore() == null ? 0 : question.getQuestionScore();
             reviews.put(question.getId(), new QuestionReviewDetail(
                     Math.min(manualScore, maxScore),
-                    submission.getTeacherFeedback()
+                    submission.getTeacherFeedback(),
+                    "TEACHER",
+                    null,
+                    null
             ));
         }
         return reviews;
@@ -549,6 +626,12 @@ public class LearningPracticeServiceImpl implements LearningPracticeService {
     private record CourseBrief(Long id, String title, Long teacherId) {
     }
 
-    private record QuestionReviewDetail(Integer score, String feedback) {
+    private record QuestionReviewDetail(
+            Integer score,
+            String feedback,
+            String source,
+            String reasoning,
+            BigDecimal confidence
+    ) {
     }
 }

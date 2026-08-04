@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -37,5 +38,8 @@ public class TeacherPracticeSubmissionVO {
         private Integer score;
         private Integer awardedScore;
         private String teacherFeedback;
+        private String reviewSource;
+        private String aiReasoning;
+        private BigDecimal aiConfidence;
     }
 }

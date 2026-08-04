@@ -1,6 +1,7 @@
 package com.edu.service;
 
 import com.edu.pojo.dto.practice.PracticeReviewRequest;
+import com.edu.pojo.dto.practice.PracticeAiDraftRequest;
 import com.edu.pojo.dto.practice.PracticePublishRequest;
 import com.edu.pojo.dto.practice.PracticeSubmitRequest;
 import com.edu.pojo.vo.practice.PracticeListItemVO;
@@ -18,6 +19,10 @@ public interface LearningPracticeService {
     StudentPracticeDetailVO submitPractice(Long practiceId, PracticeSubmitRequest request);
 
     List<TeacherPracticeSubmissionVO> listTeacherSubmissions(String status);
+
+    TeacherPracticeSubmissionVO getTeacherSubmission(Long submissionId);
+
+    TeacherPracticeSubmissionVO saveAiReviewDraft(Long submissionId, PracticeAiDraftRequest request);
 
     TeacherPracticeSubmissionVO reviewSubmission(Long submissionId, PracticeReviewRequest request);
 

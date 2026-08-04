@@ -1,6 +1,7 @@
 package com.edu.controller;
 
 import com.edu.common.Result;
+import com.edu.pojo.dto.practice.PracticeAiDraftRequest;
 import com.edu.pojo.dto.practice.PracticeReviewRequest;
 import com.edu.pojo.dto.practice.PracticePublishRequest;
 import com.edu.pojo.vo.practice.TeacherPracticeCourseVO;
@@ -36,6 +37,21 @@ public class TeacherLearningPracticeController {
     @GetMapping("/submissions")
     public Result<List<TeacherPracticeSubmissionVO>> listSubmissions(@RequestParam(required = false) String status) {
         return Result.setResult(HttpStatus.OK, "查询成功", learningPracticeService.listTeacherSubmissions(status));
+    }
+
+    @Operation(summary = "查询单次学生练习提交")
+    @GetMapping("/submissions/{submissionId}")
+    public Result<TeacherPracticeSubmissionVO> getSubmission(@PathVariable Long submissionId) {
+        return Result.setResult(HttpStatus.OK, "查询成功", learningPracticeService.getTeacherSubmission(submissionId));
+    }
+
+    @Operation(summary = "保存开放题 AI 辅助批改草稿")
+    @PatchMapping("/submissions/{submissionId}/ai-draft")
+    public Result<TeacherPracticeSubmissionVO> saveAiReviewDraft(
+            @PathVariable Long submissionId,
+            @Valid @RequestBody PracticeAiDraftRequest request
+    ) {
+        return Result.setResult(HttpStatus.OK, "AI 批改建议已带回练习", learningPracticeService.saveAiReviewDraft(submissionId, request));
     }
 
     @Operation(summary = "查询可发布练习的课程")

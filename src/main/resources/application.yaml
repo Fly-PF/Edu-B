@@ -51,6 +51,8 @@ logging:
     org.springframework.security: DEBUG
 edu:
   ai:
+    provider: ${TEACHER_AI_PROVIDER:compatible}
+    grading-model: ${TEACHER_AI_MODEL:${AI_COMPANION_MODEL:qwen2.5:3b}}
     companion:
       enabled: ${AI_COMPANION_ENABLED:true}
       api-url: ${AI_COMPANION_API_URL:}
