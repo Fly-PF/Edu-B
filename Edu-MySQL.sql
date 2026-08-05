@@ -5,7 +5,7 @@ CREATE
 USE
     edu;
 
--- 一、系统权限模块
+-- 系统权限模块
 DROP TABLE IF EXISTS sys_user;
 CREATE TABLE sys_user
 (
@@ -60,7 +60,7 @@ CREATE TABLE sys_user_role
     INDEX idx_role_id (role_id)
 ) COMMENT '用户角色关联';
 
--- 二、班级教学管理模块
+-- 班级教学管理模块
 DROP TABLE IF EXISTS edu_class;
 CREATE TABLE edu_class
 (
@@ -107,7 +107,7 @@ CREATE TABLE edu_course_class
     INDEX idx_class_id (class_id)
 ) COMMENT '课程下发班级';
 
--- 三、课程 & 学习进度模块
+-- 课程 & 学习进度模块
 DROP TABLE IF EXISTS edu_course;
 CREATE TABLE edu_course
 (
