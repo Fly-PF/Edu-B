@@ -211,7 +211,8 @@ CREATE TABLE edu_study_record
 
 
 -- 智能学伴会话与消息
-CREATE TABLE IF NOT EXISTS edu_ai_companion_session
+DROP TABLE IF EXISTS edu_ai_companion_session;
+CREATE TABLE edu_ai_companion_session
 (
     id                BIGINT PRIMARY KEY AUTO_INCREMENT,
     student_id        BIGINT       NOT NULL COMMENT '学生用户ID',
@@ -226,7 +227,8 @@ CREATE TABLE IF NOT EXISTS edu_ai_companion_session
     INDEX idx_ai_session_course (course_id)
 ) COMMENT '学生智能学伴会话';
 
-CREATE TABLE IF NOT EXISTS edu_ai_companion_message
+DROP TABLE IF EXISTS edu_ai_companion_message;
+CREATE TABLE edu_ai_companion_message
 (
     id               BIGINT PRIMARY KEY AUTO_INCREMENT,
     session_id       BIGINT      NOT NULL COMMENT '会话ID',
@@ -246,7 +248,7 @@ CREATE TABLE IF NOT EXISTS edu_ai_companion_message
     INDEX idx_ai_message_student (student_id)
 ) COMMENT '学生智能学伴消息';
 
--- 五、AI 展馆与智能创作模块
+-- AI 展馆与智能创作模块
 DROP TABLE IF EXISTS ai_practice_record;
 CREATE TABLE ai_practice_record
 (
@@ -451,7 +453,7 @@ VALUES ('face_recognition',
         1,
         '{}');
 
--- 六、人脸识别记录模块
+-- 人脸识别记录模块
 DROP TABLE IF EXISTS ai_face_compare_record;
 CREATE TABLE ai_face_compare_record
 (
@@ -478,7 +480,7 @@ CREATE TABLE ai_face_compare_record
     INDEX idx_create_time (create_time)
 ) COMMENT 'AI 人脸比对记录';
 
--- 七、积木工坊项目模块
+-- 积木工坊项目模块
 DROP TABLE IF EXISTS block_project;
 CREATE TABLE block_project
 (
@@ -503,7 +505,7 @@ CREATE TABLE block_project
     INDEX idx_block_project_source (source_project_id)
 ) COMMENT 'Blockly workshop projects';
 
-
+-- RAG知识库项目模块
 DROP TABLE IF EXISTS rag_chat_session;
 CREATE TABLE rag_chat_session
 (
@@ -601,7 +603,8 @@ CREATE TABLE rag_document
     INDEX idx_kb_id (kb_id)
 ) COMMENT '知识库文档';
 
-CREATE TABLE IF NOT EXISTS edu_resource_block_project
+DROP TABLE IF EXISTS edu_resource_block_project;
+CREATE TABLE edu_resource_block_project
 (
     resource_id BIGINT PRIMARY KEY,
     project_id  BIGINT   NOT NULL,
@@ -609,7 +612,8 @@ CREATE TABLE IF NOT EXISTS edu_resource_block_project
     INDEX idx_resource_block_project_project (project_id)
 ) COMMENT 'Course resource to public Blockly project relation';
 
-CREATE TABLE IF NOT EXISTS edu_resource_study_record
+DROP TABLE IF EXISTS edu_resource_study_record;
+CREATE TABLE edu_resource_study_record
 (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     student_id      BIGINT   NOT NULL,
