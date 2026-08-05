@@ -4,6 +4,7 @@ import com.edu.pojo.vo.ai.AiCompanionMaterialExcerpt;
 import com.edu.pojo.vo.course.ResourceVO;
 import com.edu.service.CourseMaterialRetrievalService;
 import com.edu.service.CourseResourceStorageService;
+import com.edu.util.CourseMaterialRelevance;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
@@ -15,12 +16,10 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * A small local retriever for the course PDFs. It keeps the implementation deployable
@@ -34,11 +33,6 @@ public class CourseMaterialRetrievalServiceImpl implements CourseMaterialRetriev
     private static final long MAX_PDF_BYTES = 16L * 1024 * 1024;
     private static final int MAX_EXCERPTS = 3;
     private static final int MAX_EXCERPT_LENGTH = 900;
-    private static final List<String> COURSE_KEYWORDS = List.of(
-            "机器学习", "实验", "样本", "标签", "特征", "数据集", "分类", "训练", "测试", "评估",
-            "准确率", "偏差", "隐私", "模型", "预测", "背景", "错误", "改进", "算法", "数据", "过拟合", "泛化", "欠拟合"
-    );
-
     private final CourseResourceStorageService storageService;
     private final Map<String, List<PageText>> pageCache = new ConcurrentHashMap<>();
 
@@ -47,7 +41,6 @@ public class CourseMaterialRetrievalServiceImpl implements CourseMaterialRetriev
         if (resources == null || resources.isEmpty() || !StringUtils.hasText(question)) {
             return List.of();
         }
-        List<String> keywords = keywords(question);
         List<ScoredExcerpt> candidates = new ArrayList<>();
         for (ResourceVO resource : resources) {
             if (!isPdf(resource) || !StringUtils.hasText(resource.getStoredUrl())) {
@@ -55,7 +48,7 @@ public class CourseMaterialRetrievalServiceImpl implements CourseMaterialRetriev
             }
             for (PageText page : pageCache.computeIfAbsent(resource.getStoredUrl(), key -> extractPages(resource))) {
                 for (String excerpt : splitIntoExcerpts(page.text())) {
-                    int score = score(excerpt, keywords);
+                    int score = score(excerpt, question);
                     if (score > 0) {
                         candidates.add(new ScoredExcerpt(resource.getName(), page.pageNumber(), excerpt, score));
                     }
@@ -97,29 +90,8 @@ public class CourseMaterialRetrievalServiceImpl implements CourseMaterialRetriev
                 || resource.getStoredUrl().toLowerCase(Locale.ROOT).endsWith(".pdf");
     }
 
-    private List<String> keywords(String question) {
-        String normalized = question.toLowerCase(Locale.ROOT);
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        COURSE_KEYWORDS.stream().filter(normalized::contains).forEach(result::add);
-        for (String part : normalized.split("[^\\p{IsAlphabetic}\\p{IsDigit}]+")) {
-            if (part.length() >= 2 && !part.chars().allMatch(Character::isIdeographic)) {
-                result.add(part);
-            }
-        }
-        return new ArrayList<>(result);
-    }
-
-    private int score(String content, List<String> keywords) {
-        String normalized = content.toLowerCase(Locale.ROOT);
-        int score = 0;
-        for (String keyword : keywords) {
-            int start = 0;
-            while ((start = normalized.indexOf(keyword.toLowerCase(Locale.ROOT), start)) >= 0) {
-                score++;
-                start += keyword.length();
-            }
-        }
-        return score;
+    private int score(String content, String question) {
+        return CourseMaterialRelevance.matches(question, content) ? 1 : 0;
     }
 
     private List<String> splitIntoExcerpts(String pageText) {

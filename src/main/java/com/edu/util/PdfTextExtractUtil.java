@@ -1,6 +1,7 @@
 package com.edu.util;
 
 import com.edu.common.dto.RagTextChunkDTO;
+import com.edu.exception.BaseException;
 import com.edu.util.abstracts.AbstractTikaTextExtractUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,9 @@ public class PdfTextExtractUtil extends AbstractTikaTextExtractUtil {
             }
             return chunks;
         } catch (Exception ex) {
+            if (ex instanceof BaseException baseException) {
+                throw baseException;
+            }
             throwExtractException(log, "PDF", ex);
             return List.of();
         }
@@ -69,11 +73,20 @@ public class PdfTextExtractUtil extends AbstractTikaTextExtractUtil {
     private String extractPageText(PDDocument document, PDFTextStripper stripper, PDFRenderer renderer, int pageNum)
             throws IOException {
         String text = stripper.getText(document);
-        if (countNonWhitespaceChars(text) >= MIN_TEXT_CHAR_COUNT) {
+        if (isReadableText(text)) {
             return "## 第 " + pageNum + " 页\n\n" + text;
         }
         return imageTextExtractUtil.extract(new ByteArrayInputStream(renderPageToPng(renderer, pageNum)), false,
                 PDF_FALLBACK_PREFIX);
+    }
+
+    private boolean isReadableText(String text) {
+        int visibleChars = countNonWhitespaceChars(text);
+        if (visibleChars < MIN_TEXT_CHAR_COUNT) {
+            return false;
+        }
+        long replacementChars = text.codePoints().filter(value -> value == 0xfffd).count();
+        return replacementChars * 20 < visibleChars;
     }
 
     private byte[] toByteArray(InputStream inputStream) throws IOException {

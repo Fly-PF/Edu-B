@@ -35,6 +35,7 @@ import com.edu.repository.RagMsgDocRefRepository;
 import com.edu.repository.RagRepository;
 import com.edu.service.RagService;
 import com.edu.util.ImageTextExtractUtil;
+import com.edu.util.CourseMaterialRelevance;
 import com.edu.util.MdTextExtractUtil;
 import com.edu.util.PdfTextExtractUtil;
 import com.edu.util.PptTextExtractUtil;
@@ -1545,6 +1546,7 @@ public class RagServiceImpl implements RagService {
                     .stream()
                     .collect(java.util.stream.Collectors.toMap(RagDocumentPO::getId, RagDocumentPO::getDocName));
             return chunks.stream()
+                    .filter(chunk -> CourseMaterialRelevance.matches(question, chunk.content()))
                     .limit(MAX_COURSE_MATERIAL_EXCERPTS)
                     .map(chunk -> new AiCompanionMaterialExcerpt(
                             namesByDocumentId.getOrDefault(chunk.docId(), "课程资料"),
