@@ -25,4 +25,6 @@ public class RagKnowledgeBaseVO {
     private Integer publicFlag;
 
     private Integer status;
+
+    private Long courseId;
 }

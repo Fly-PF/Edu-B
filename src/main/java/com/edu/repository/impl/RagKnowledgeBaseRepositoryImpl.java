@@ -1,6 +1,7 @@
 package com.edu.repository.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.edu.mapper.RagKnowledgeBaseMapper;
@@ -15,6 +16,8 @@ import java.util.List;
 @Repository
 @RequiredArgsConstructor
 public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepository {
+    private static final long LEGACY_COURSE_ID = -1L;
+
     private final RagKnowledgeBaseMapper ragKnowledgeBaseMapper;
 
     @Override
@@ -31,6 +34,15 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
     }
 
     @Override
+    public RagKnowledgeBasePO selectLegacyKnowledgeBaseById(Long id, Long userId) {
+        return ragKnowledgeBaseMapper.selectOne(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getId, id)
+                .eq(RagKnowledgeBasePO::getUserId, userId)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
+                .eq(RagKnowledgeBasePO::getDeleted, 0));
+    }
+
+    @Override
     public RagKnowledgeBasePO selectKnowledgeBaseById(Long id) {
         return ragKnowledgeBaseMapper.selectOne(new LambdaQueryWrapper<RagKnowledgeBasePO>()
                 .eq(RagKnowledgeBasePO::getId, id));
@@ -42,6 +54,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                 .eq(RagKnowledgeBasePO::getId, id)
                 .eq(RagKnowledgeBasePO::getPublicFlag, 1)
                 .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .eq(RagKnowledgeBasePO::getDeleted, 0));
     }
 
@@ -51,6 +64,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                 .eq(RagKnowledgeBasePO::getId, id)
                 .eq(RagKnowledgeBasePO::getStatus, 1)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .and(wrapper -> wrapper
                         .eq(RagKnowledgeBasePO::getUserId, userId)
                         .or(publicWrapper -> publicWrapper
@@ -61,7 +75,9 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
 
     @Override
     public int updateKnowledgeBase(RagKnowledgeBasePO knowledgeBase) {
-        return ragKnowledgeBaseMapper.updateById(knowledgeBase);
+        return ragKnowledgeBaseMapper.update(knowledgeBase, new LambdaUpdateWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getId, knowledgeBase.getId())
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID));
     }
 
     @Override
@@ -69,6 +85,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                                                             Integer kbType) {
         return ragKnowledgeBaseMapper.selectList(new LambdaQueryWrapper<RagKnowledgeBasePO>()
                 .eq(RagKnowledgeBasePO::getUserId, userId)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
                 .eq(status != null, RagKnowledgeBasePO::getStatus, status)
                 .eq(isPublic != null, RagKnowledgeBasePO::getPublicFlag, isPublic)
@@ -84,6 +101,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                 .eq(RagKnowledgeBasePO::getKbType, kbType)
                 .eq(RagKnowledgeBasePO::getPublicFlag, 1)
                 .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
                 .orderByDesc(RagKnowledgeBasePO::getCreateTime)
                 .orderByDesc(RagKnowledgeBasePO::getId)
@@ -93,6 +111,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
     @Override
     public List<RagKnowledgeBasePO> selectSessionKnowledgeBases(Long sessionId) {
         return ragKnowledgeBaseMapper.selectList(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
                 .inSql(RagKnowledgeBasePO::getId,
                         "select kb_id from rag_session_kb_ref where session_id = " + sessionId + " and deleted = 0")
@@ -106,6 +125,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
         LambdaQueryWrapper<RagKnowledgeBasePO> queryWrapper = new LambdaQueryWrapper<RagKnowledgeBasePO>()
                 .eq(RagKnowledgeBasePO::getPublicFlag, 1)
                 .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
                 .eq(kbType != null, RagKnowledgeBasePO::getKbType, kbType)
                 .like(StringUtils.hasText(keyword), RagKnowledgeBasePO::getKbName, keyword == null ? null : keyword.trim())
@@ -120,6 +140,7 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
         LambdaQueryWrapper<RagKnowledgeBasePO> queryWrapper = new LambdaQueryWrapper<RagKnowledgeBasePO>()
                 .eq(RagKnowledgeBasePO::getPublicFlag, 1)
                 .eq(RagKnowledgeBasePO::getStatus, 1)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
                 .ne(RagKnowledgeBasePO::getUserId, userId)
                 .eq(kbType != null, RagKnowledgeBasePO::getKbType, kbType)

@@ -95,6 +95,8 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 public class RagServiceImpl implements RagService {
+    private static final long LEGACY_COURSE_ID = -1L;
+    private static final String COURSE_KNOWLEDGE_BASE_FORBIDDEN_MESSAGE = "无权操作课程知识库";
     private static final String RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX = "rag_file_upload_extract_flag_";
     private static final long RAG_FILE_UPLOAD_EXTRACT_FLAG_EXPIRE_MINUTES = 5L;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -205,7 +207,8 @@ public class RagServiceImpl implements RagService {
             throw new BaseException(HttpStatus.BAD_REQUEST, "知识库ID无效");
         }
 
-        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        validateLegacyKnowledgeBase(kbId);
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectLegacyKnowledgeBaseById(kbId, loginUser.getUserId());
         if (knowledgeBase == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
         }
@@ -216,6 +219,7 @@ public class RagServiceImpl implements RagService {
     @Override
     public boolean isKnowledgeBaseCollected(Long kbId) {
         UserInfoDTO loginUser = getLoginUser();
+        validateLegacyKnowledgeBase(kbId);
         RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
         if (knowledgeBase == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
@@ -315,6 +319,7 @@ public class RagServiceImpl implements RagService {
         List<Long> selectedKbIds = new ArrayList<>(uniqueKbIds);
         List<RagKnowledgeBasePO> knowledgeBases = new ArrayList<>(selectedKbIds.size());
         for (Long kbId : selectedKbIds) {
+            validateLegacyKnowledgeBase(kbId);
             RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectSelectableKnowledgeBase(loginUser.getUserId(), kbId);
             if (knowledgeBase == null) {
                 throw new BaseException(HttpStatus.BAD_REQUEST, "存在不可选的知识库");
@@ -1232,7 +1237,8 @@ public class RagServiceImpl implements RagService {
         UserInfoDTO loginUser = getLoginUser();
         validateKnowledgeBaseId(kbId);
 
-        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        validateLegacyKnowledgeBase(kbId);
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectLegacyKnowledgeBaseById(kbId, loginUser.getUserId());
         if (knowledgeBase == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
         }
@@ -1253,6 +1259,7 @@ public class RagServiceImpl implements RagService {
     public List<RagDocumentVO> listPublicKnowledgeBaseDocuments(Long kbId) {
         validateKnowledgeBaseId(kbId);
 
+        validateLegacyKnowledgeBase(kbId);
         RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
         if (knowledgeBase == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
@@ -1303,7 +1310,8 @@ public class RagServiceImpl implements RagService {
         validateKnowledgeBaseId(kbId);
         validateKnowledgeBaseUpdate(kbName, kbType, isPublic, status);
 
-        RagKnowledgeBasePO origin = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+        validateLegacyKnowledgeBase(kbId);
+        RagKnowledgeBasePO origin = ragKnowledgeBaseRepository.selectLegacyKnowledgeBaseById(kbId, loginUser.getUserId());
         if (origin == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
         }
@@ -1651,8 +1659,19 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private void validatePublicKnowledgeBaseForCollection(Long kbId, Long userId, boolean rejectOwner) {
+    private void validateLegacyKnowledgeBase(Long kbId) {
         validateKnowledgeBaseId(kbId);
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId);
+        if (knowledgeBase == null || knowledgeBase.getDeleted() == null || knowledgeBase.getDeleted() == 1) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+        if (!Long.valueOf(LEGACY_COURSE_ID).equals(knowledgeBase.getCourseId())) {
+            throw new BaseException(HttpStatus.FORBIDDEN, COURSE_KNOWLEDGE_BASE_FORBIDDEN_MESSAGE);
+        }
+    }
+
+    private void validatePublicKnowledgeBaseForCollection(Long kbId, Long userId, boolean rejectOwner) {
+        validateLegacyKnowledgeBase(kbId);
         RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
         if (knowledgeBase == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
@@ -1777,6 +1796,7 @@ public class RagServiceImpl implements RagService {
                 .kbType(knowledgeBase.getKbType())
                 .publicFlag(knowledgeBase.getPublicFlag())
                 .status(knowledgeBase.getStatus())
+                .courseId(knowledgeBase.getCourseId())
                 .build();
     }
 

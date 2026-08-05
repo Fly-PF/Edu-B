@@ -1,0 +1,713 @@
+{
+  "collection_name": "rag_chunk",
+  "schema": {
+    "fields": [
+      {
+        "type_params": [],
+        "index_params": [],
+        "fieldID": "100",
+        "name": "id",
+        "is_primary_key": true,
+        "description": "id",
+        "data_type": "Int64",
+        "autoID": true,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 5,
+        "_placeholderType": 5,
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": -1
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "101",
+        "name": "kb_id",
+        "is_primary_key": false,
+        "description": "所属知识库id",
+        "data_type": "Int64",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 5,
+        "_placeholderType": 5,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "102",
+        "name": "doc_id",
+        "is_primary_key": false,
+        "description": "归属文档id",
+        "data_type": "Int64",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 5,
+        "_placeholderType": 5,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "103",
+        "name": "source_info",
+        "is_primary_key": false,
+        "description": "原文页码/段落，溯源使用",
+        "data_type": "VarChar",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 21,
+        "_placeholderType": 21,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "65535"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "104",
+        "name": "content",
+        "is_primary_key": false,
+        "description": "文本片段内容",
+        "data_type": "VarChar",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 21,
+        "_placeholderType": 21,
+        "max_length": "65535",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 65535
+      },
+      {
+        "type_params": [
+          {
+            "key": "dim",
+            "value": "2048"
+          },
+          {
+            "key": "mmap.enabled",
+            "value": "false"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "105",
+        "name": "vector",
+        "is_primary_key": false,
+        "description": "向量数据",
+        "data_type": "FloatVector",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 101,
+        "_placeholderType": 101,
+        "dim": "2048",
+        "mmap.enabled": "false",
+        "indexes": [
+          {
+            "params": [
+              {
+                "key": "index_type",
+                "value": "AUTOINDEX"
+              },
+              {
+                "key": "metric_type",
+                "value": "COSINE"
+              }
+            ],
+            "index_name": "rag_chunk_vector_index",
+            "indexID": "467849050706098180",
+            "field_name": "vector",
+            "indexed_rows": "54",
+            "total_rows": "54",
+            "state": "Finished",
+            "index_state_fail_reason": "",
+            "pending_index_rows": "0",
+            "min_index_version": 2147483647,
+            "max_index_version": -2147483648,
+            "indexType": "AUTOINDEX",
+            "metricType": "COSINE",
+            "indexParameterPairs": [
+              {
+                "key": "index_type",
+                "value": "AUTOINDEX"
+              },
+              {
+                "key": "metric_type",
+                "value": "COSINE"
+              }
+            ]
+          }
+        ],
+        "dimension": 2048,
+        "maxCapacity": -1,
+        "maxLength": -1
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "106",
+        "name": "metadata",
+        "is_primary_key": false,
+        "description": "消息元数据（如扩展字段等，JSON格式存储）",
+        "data_type": "JSON",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 23,
+        "_placeholderType": 23,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          },
+          {
+            "key": "mmap.enabled",
+            "value": "false"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "107",
+        "name": "create_time",
+        "is_primary_key": false,
+        "description": "创建时间",
+        "data_type": "Timestamptz",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 26,
+        "_placeholderType": 26,
+        "max_length": "256",
+        "mmap.enabled": "false",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "108",
+        "name": "deleted",
+        "is_primary_key": false,
+        "description": "逻辑删除标志，0未删除，1逻辑删除",
+        "data_type": "Int8",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": 0,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 2,
+        "_placeholderType": 2,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      }
+    ],
+    "properties": [
+      {
+        "key": "timezone",
+        "value": "Asia/Shanghai"
+      }
+    ],
+    "functions": [],
+    "struct_array_fields": [],
+    "name": "rag_chunk",
+    "description": "文档拆分向量块，RAG检索数据源",
+    "autoID": false,
+    "enable_dynamic_field": false,
+    "dbName": "",
+    "version": 0,
+    "enable_namespace": false,
+    "primaryField": {
+      "type_params": [],
+      "index_params": [],
+      "fieldID": "100",
+      "name": "id",
+      "is_primary_key": true,
+      "description": "id",
+      "data_type": "Int64",
+      "autoID": true,
+      "state": "FieldCreated",
+      "element_type": "None",
+      "default_value": null,
+      "is_dynamic": false,
+      "is_partition_key": false,
+      "is_clustering_key": false,
+      "nullable": false,
+      "is_function_output": false,
+      "dataType": 5,
+      "_placeholderType": 5,
+      "indexes": [],
+      "dimension": -1,
+      "maxCapacity": -1,
+      "maxLength": -1
+    },
+    "hasVectorIndex": true,
+    "enablePartitionKey": false,
+    "scalarFields": [
+      {
+        "type_params": [],
+        "index_params": [],
+        "fieldID": "100",
+        "name": "id",
+        "is_primary_key": true,
+        "description": "id",
+        "data_type": "Int64",
+        "autoID": true,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 5,
+        "_placeholderType": 5,
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": -1
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "101",
+        "name": "kb_id",
+        "is_primary_key": false,
+        "description": "所属知识库id",
+        "data_type": "Int64",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 5,
+        "_placeholderType": 5,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "102",
+        "name": "doc_id",
+        "is_primary_key": false,
+        "description": "归属文档id",
+        "data_type": "Int64",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 5,
+        "_placeholderType": 5,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "103",
+        "name": "source_info",
+        "is_primary_key": false,
+        "description": "原文页码/段落，溯源使用",
+        "data_type": "VarChar",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 21,
+        "_placeholderType": 21,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "65535"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "104",
+        "name": "content",
+        "is_primary_key": false,
+        "description": "文本片段内容",
+        "data_type": "VarChar",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 21,
+        "_placeholderType": 21,
+        "max_length": "65535",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 65535
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "106",
+        "name": "metadata",
+        "is_primary_key": false,
+        "description": "消息元数据（如扩展字段等，JSON格式存储）",
+        "data_type": "JSON",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 23,
+        "_placeholderType": 23,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          },
+          {
+            "key": "mmap.enabled",
+            "value": "false"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "107",
+        "name": "create_time",
+        "is_primary_key": false,
+        "description": "创建时间",
+        "data_type": "Timestamptz",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 26,
+        "_placeholderType": 26,
+        "max_length": "256",
+        "mmap.enabled": "false",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      },
+      {
+        "type_params": [
+          {
+            "key": "max_length",
+            "value": "256"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "108",
+        "name": "deleted",
+        "is_primary_key": false,
+        "description": "逻辑删除标志，0未删除，1逻辑删除",
+        "data_type": "Int8",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": 0,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 2,
+        "_placeholderType": 2,
+        "max_length": "256",
+        "indexes": [],
+        "dimension": -1,
+        "maxCapacity": -1,
+        "maxLength": 256
+      }
+    ],
+    "vectorFields": [
+      {
+        "type_params": [
+          {
+            "key": "dim",
+            "value": "2048"
+          },
+          {
+            "key": "mmap.enabled",
+            "value": "false"
+          }
+        ],
+        "index_params": [],
+        "fieldID": "105",
+        "name": "vector",
+        "is_primary_key": false,
+        "description": "向量数据",
+        "data_type": "FloatVector",
+        "autoID": false,
+        "state": "FieldCreated",
+        "element_type": "None",
+        "default_value": null,
+        "is_dynamic": false,
+        "is_partition_key": false,
+        "is_clustering_key": false,
+        "nullable": false,
+        "is_function_output": false,
+        "dataType": 101,
+        "_placeholderType": 101,
+        "dim": "2048",
+        "mmap.enabled": "false",
+        "indexes": [
+          {
+            "params": [
+              {
+                "key": "index_type",
+                "value": "AUTOINDEX"
+              },
+              {
+                "key": "metric_type",
+                "value": "COSINE"
+              }
+            ],
+            "index_name": "rag_chunk_vector_index",
+            "indexID": "467849050706098180",
+            "field_name": "vector",
+            "indexed_rows": "54",
+            "total_rows": "54",
+            "state": "Finished",
+            "index_state_fail_reason": "",
+            "pending_index_rows": "0",
+            "min_index_version": 2147483647,
+            "max_index_version": -2147483648,
+            "indexType": "AUTOINDEX",
+            "metricType": "COSINE",
+            "indexParameterPairs": [
+              {
+                "key": "index_type",
+                "value": "AUTOINDEX"
+              },
+              {
+                "key": "metric_type",
+                "value": "COSINE"
+              }
+            ]
+          }
+        ],
+        "dimension": 2048,
+        "maxCapacity": -1,
+        "maxLength": -1
+      }
+    ],
+    "functionFields": [],
+    "dynamicFields": []
+  },
+  "rowCount": 54,
+  "createdTime": 1784711588338,
+  "update_timestamp": 1784711588338,
+  "aliases": [],
+  "description": "文档拆分向量块，RAG检索数据源",
+  "autoID": true,
+  "id": "467849050705672965",
+  "loadedPercentage": 100,
+  "consistency_level": "Bounded",
+  "replicas": [
+    {
+      "partition_ids": [],
+      "shard_replicas": [
+        {
+          "node_ids": [
+            "54"
+          ],
+          "leaderID": "54",
+          "leader_addr": "172.18.0.2:21123",
+          "dm_channel_name": "by-dev-rootcoord-dml_0_467849050705672965v0"
+        }
+      ],
+      "node_ids": [
+        "54"
+      ],
+      "num_outbound_node": {},
+      "replicaID": "467849050722664449",
+      "collectionID": "467849050705672965",
+      "resource_group_name": "__default_resource_group"
+    }
+  ],
+  "loaded": true,
+  "status": "loaded",
+  "properties": [
+    {
+      "key": "timezone",
+      "value": "Asia/Shanghai"
+    }
+  ],
+  "shards_num": 1,
+  "_schemaVersion": 1
+}

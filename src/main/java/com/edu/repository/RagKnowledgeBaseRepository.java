@@ -10,6 +10,8 @@ public interface RagKnowledgeBaseRepository {
 
     RagKnowledgeBasePO selectKnowledgeBaseById(Long id, Long userId);
 
+    RagKnowledgeBasePO selectLegacyKnowledgeBaseById(Long id, Long userId);
+
     RagKnowledgeBasePO selectKnowledgeBaseById(Long id);
 
     RagKnowledgeBasePO selectPublicKnowledgeBaseById(Long id);

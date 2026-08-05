@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RagFileAccessServiceImpl implements RagFileAccessService {
+    private static final long LEGACY_COURSE_ID = -1L;
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
     private static final Set<String> PREVIEWABLE_FILE_EXTENSIONS = Set.of(
             "jpg", "jpeg", "png", "webp", "pdf", "ppt", "pptx", "txt", "md", "docx", "doc");
@@ -181,11 +182,12 @@ public class RagFileAccessServiceImpl implements RagFileAccessService {
     }
 
     private RagDocumentPO validatePreviewDocument(Long kbId, String fileUrl) {
+        validateLegacyKnowledgeBase(kbId);
         UserInfoDTO loginUser = SecurityUtil.getLoginUser();
         RagKnowledgeBasePO publicKnowledgeBase = ragKnowledgeBaseRepository.selectPublicKnowledgeBaseById(kbId);
         RagKnowledgeBasePO myKnowledgeBase = loginUser == null || loginUser.getUserId() == null
                 ? null
-                : ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, loginUser.getUserId());
+                : ragKnowledgeBaseRepository.selectLegacyKnowledgeBaseById(kbId, loginUser.getUserId());
         if (publicKnowledgeBase == null && myKnowledgeBase == null) {
             throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
         }
@@ -195,6 +197,16 @@ public class RagFileAccessServiceImpl implements RagFileAccessService {
             throw new BaseException(HttpStatus.NOT_FOUND, "文件不存在");
         }
         return document;
+    }
+
+    private void validateLegacyKnowledgeBase(Long kbId) {
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId);
+        if (knowledgeBase == null || knowledgeBase.getDeleted() == null || knowledgeBase.getDeleted() == 1) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在");
+        }
+        if (!Long.valueOf(LEGACY_COURSE_ID).equals(knowledgeBase.getCourseId())) {
+            throw new BaseException(HttpStatus.FORBIDDEN, "无权操作课程知识库");
+        }
     }
 
     private List<RagTextChunkDTO> extractPreviewText(InputStream inputStream, String extension) {

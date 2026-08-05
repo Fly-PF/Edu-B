@@ -41,6 +41,9 @@ public class RagKnowledgeBasePO {
     @TableField(value = "status")
     private Integer status;
 
+    @TableField(value = "course_id")
+    private Long courseId;
+
     @TableField(value = "create_time")
     private LocalDateTime createTime;
 
