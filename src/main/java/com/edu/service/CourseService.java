@@ -8,6 +8,7 @@ import com.edu.pojo.dto.course.CourseStudyRecordRequest;
 import com.edu.pojo.dto.course.CourseUpdateRequest;
 import com.edu.pojo.dto.course.ResourceCreateRequest;
 import com.edu.pojo.dto.course.ResourceUpdateRequest;
+import com.edu.pojo.dto.course.BlockProjectResourceCreateRequest;
 import com.edu.pojo.vo.course.ChapterVO;
 import com.edu.pojo.vo.course.CourseStudyRecordVO;
 import com.edu.pojo.vo.course.CourseVO;
@@ -63,6 +64,8 @@ public interface CourseService {
     void reorderChapters(Long courseId, List<ChapterReorderItem> items);
 
     ResourceVO createResource(Long courseId, Long chapterId, ResourceCreateRequest request);
+
+    ResourceVO createBlockProjectResource(Long courseId, Long chapterId, BlockProjectResourceCreateRequest request);
 
     ResourceVO uploadResource(Long courseId, Long chapterId, MultipartFile file, Integer duration);
 

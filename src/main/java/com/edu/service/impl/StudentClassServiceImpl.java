@@ -17,11 +17,14 @@ import com.edu.pojo.po.EduCourseClassPO;
 import com.edu.pojo.po.EduCoursePO;
 import com.edu.pojo.po.EduStudyRecordPO;
 import com.edu.pojo.po.SysUserPO;
+import com.edu.pojo.vo.course.ChapterResourceProgressVO;
 import com.edu.repository.EduClassRepository;
 import com.edu.repository.EduClassStudentRepository;
 import com.edu.repository.EduCourseClassRepository;
 import com.edu.repository.SysUserRepository;
+import com.edu.service.CourseResourceStorageService;
 import com.edu.service.StudentClassService;
+import com.edu.service.CourseResourceProgressService;
 import com.edu.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -53,6 +56,8 @@ public class StudentClassServiceImpl implements StudentClassService {
     private final com.edu.repository.EduCourseRepository courseRepository;
     private final com.edu.repository.EduChapterRepository chapterRepository;
     private final com.edu.repository.EduStudyRecordRepository studyRecordRepository;
+    private final CourseResourceStorageService storageService;
+    private final CourseResourceProgressService resourceProgressService;
 
     @Override
     @Transactional
@@ -253,9 +258,9 @@ public class StudentClassServiceImpl implements StudentClassService {
     private StudentClassDetailDTO.AssignedCourseItem buildAssignedItem(EduCourseClassPO a, Long sid) {
         EduCoursePO c = courseRepository.selectCourseById(a.getCourseId());
         if (c == null || Objects.equals(c.getDeleted(), 1)) return null;
-        int[] info = calcStudyInfo(c.getId(), sid, a.getDeadline());
+        int[] info = calcStudyInfo(c.getId(), sid, a.getId(), a.getDeadline());
         return StudentClassDetailDTO.AssignedCourseItem.builder()
-                .courseId(c.getId()).courseName(c.getCourseName()).cover(c.getCover())
+                .courseId(c.getId()).courseName(c.getCourseName()).cover(storageService.createReadUrl(c.getCover()))
                 .publishTime(fmt(a.getPublishTime())).deadline(fmt(a.getDeadline()))
                 .studyStatus(info[0]).progress(info[1]).build();
     }
@@ -263,17 +268,17 @@ public class StudentClassServiceImpl implements StudentClassService {
     private StudentClassCourseDTO buildCourseDTO(EduCourseClassPO a, Long sid) {
         EduCoursePO c = courseRepository.selectCourseById(a.getCourseId());
         if (c == null || Objects.equals(c.getDeleted(), 1)) return null;
-        int[] info = calcStudyInfo(c.getId(), sid, a.getDeadline());
+        int[] info = calcStudyInfo(c.getId(), sid, a.getId(), a.getDeadline());
         return StudentClassCourseDTO.builder()
                 .assignmentId(a.getId()).courseId(c.getId()).courseName(c.getCourseName())
-                .cover(c.getCover()).grade(c.getGrade()).difficulty(c.getDifficulty())
+                .cover(storageService.createReadUrl(c.getCover())).grade(c.getGrade()).difficulty(c.getDifficulty())
                 .courseType(c.getCourseType()).totalDuration(c.getTotalDuration())
                 .totalChapter(c.getTotalChapter())
                 .publishTime(fmt(a.getPublishTime())).deadline(fmt(a.getDeadline()))
                 .studyStatus(info[0]).progress(info[1]).build();
     }
 
-    private int[] calcStudyInfo(Long courseId, Long studentId, LocalDateTime deadline) {
+    private int[] calcStudyInfo(Long courseId, Long studentId, Long assignmentId, LocalDateTime deadline) {
         List<EduChapterPO> chapters = chapterRepository.selectChaptersByCourseId(courseId).stream()
                 .filter(ch -> !Objects.equals(ch.getDeleted(), 1))
                 .sorted(Comparator.comparing(EduChapterPO::getSort, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -287,13 +292,27 @@ public class StudentClassServiceImpl implements StudentClassService {
                     if (b.getLastStudyTime() == null) return a;
                     return a.getLastStudyTime().isAfter(b.getLastStudyTime()) ? a : b;
                 }));
-        long finishedCount = recordsByChapter.values().stream()
-                .filter(r -> Objects.equals(r.getFinishStatus(), 1)).count();
-        boolean hasStarted = recordsByChapter.values().stream()
-                .anyMatch(r -> normProgress(r.getProgress()) > 0);
-        int progressSum = chapters.stream().map(EduChapterPO::getId)
-                .map(id -> recordsByChapter.get(id)).filter(Objects::nonNull)
-                .mapToInt(r -> normProgress(r.getProgress())).sum();
+        Map<Long, ChapterResourceProgressVO> resourceProgress = resourceProgressService
+                .summarizeChapters(studentId, courseId, assignmentId).stream()
+                .collect(Collectors.toMap(ChapterResourceProgressVO::getChapterId, item -> item));
+        long finishedCount = chapters.stream().filter(chapter -> {
+            ChapterResourceProgressVO progress = resourceProgress.get(chapter.getId());
+            return progress != null && Boolean.TRUE.equals(progress.getHasResourceRecords())
+                    ? Objects.equals(progress.getFinishStatus(), 1)
+                    : Objects.equals(recordsByChapter.get(chapter.getId()) == null ? null : recordsByChapter.get(chapter.getId()).getFinishStatus(), 1);
+        }).count();
+        boolean hasStarted = chapters.stream().anyMatch(chapter -> {
+            ChapterResourceProgressVO progress = resourceProgress.get(chapter.getId());
+            return progress != null && Boolean.TRUE.equals(progress.getHasResourceRecords())
+                    ? normProgress(progress.getProgress()) > 0
+                    : recordsByChapter.get(chapter.getId()) != null && normProgress(recordsByChapter.get(chapter.getId()).getProgress()) > 0;
+        });
+        int progressSum = chapters.stream().mapToInt(chapter -> {
+            ChapterResourceProgressVO progress = resourceProgress.get(chapter.getId());
+            return progress != null && Boolean.TRUE.equals(progress.getHasResourceRecords())
+                    ? normProgress(progress.getProgress())
+                    : normProgress(recordsByChapter.get(chapter.getId()) == null ? null : recordsByChapter.get(chapter.getId()).getProgress());
+        }).sum();
         int status;
         if (finishedCount >= chapters.size()) status = 2;
         else if (deadline != null && LocalDateTime.now().isAfter(deadline)) status = 3;

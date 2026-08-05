@@ -20,5 +20,8 @@ public class ResourceVO {
     private Long fileSize;
     private Integer duration;
     private Integer sortOrder;
+    private Long blockProjectId;
+    private String blockProjectKind;
+    private Boolean blockProjectAvailable;
     private LocalDateTime createdTime;
 }

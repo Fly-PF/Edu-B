@@ -6,6 +6,9 @@ import com.edu.pojo.vo.course.ChapterVO;
 import com.edu.pojo.vo.course.CourseStudyRecordVO;
 import com.edu.pojo.vo.course.CourseVO;
 import com.edu.pojo.vo.course.ResourceVO;
+import com.edu.pojo.dto.course.ResourceStudyRecordRequest;
+import com.edu.pojo.vo.course.ResourceStudyRecordVO;
+import com.edu.service.CourseResourceProgressService;
 import com.edu.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +30,7 @@ import java.util.List;
 @Tag(name = "学生课程学习")
 public class StudentCourseController {
     private final CourseService courseService;
+    private final CourseResourceProgressService resourceProgressService;
 
     @Operation(summary = "学生查看课程详情")
     @GetMapping("/courses/{courseId}")
@@ -68,6 +72,29 @@ public class StudentCourseController {
             @RequestParam(required = false) Long classId
     ) {
         return Result.setResult(HttpStatus.OK, "查询成功", courseService.listStudyRecords(courseId));
+    }
+
+    @GetMapping("/courses/{courseId}/resource-study-records")
+    public Result<List<ResourceStudyRecordVO>> listResourceStudyRecords(
+            @PathVariable Long courseId,
+            @RequestParam(required = false) Long assignmentId
+    ) {
+        return Result.setResult(HttpStatus.OK, "查询成功", resourceProgressService.listRecords(courseId, assignmentId));
+    }
+
+    @PostMapping("/resource-study-records")
+    public Result<ResourceStudyRecordVO> saveResourceStudyRecord(@RequestBody ResourceStudyRecordRequest request) {
+        return Result.setResult(HttpStatus.OK, "保存成功", resourceProgressService.save(request));
+    }
+
+    @PostMapping("/resource-study-records/open-block-project")
+    public Result<ResourceStudyRecordVO> openBlockProject(@RequestBody ResourceStudyRecordRequest request) {
+        return Result.setResult(HttpStatus.OK, "项目已打开", resourceProgressService.openBlockProject(request));
+    }
+
+    @PostMapping("/resource-study-records/complete-block-project")
+    public Result<ResourceStudyRecordVO> completeBlockProject(@RequestBody ResourceStudyRecordRequest request) {
+        return Result.setResult(HttpStatus.OK, "项目已完成", resourceProgressService.completeBlockProject(request));
     }
 
     @Operation(summary = "学生查看平台公开课程列表")

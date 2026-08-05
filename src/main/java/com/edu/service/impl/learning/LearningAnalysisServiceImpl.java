@@ -40,6 +40,7 @@ import com.edu.pojo.vo.learning.LearningStudentOverviewVO;
 import com.edu.pojo.vo.learning.LearningStudentTypeProfileVO;
 import com.edu.pojo.vo.learning.LearningTeacherGrowthVO;
 import com.edu.pojo.vo.learning.LearningTeacherOverviewVO;
+import com.edu.pojo.vo.course.ChapterResourceProgressVO;
 import com.edu.repository.EduChapterRepository;
 import com.edu.repository.EduClassRepository;
 import com.edu.repository.EduClassStudentRepository;
@@ -48,6 +49,7 @@ import com.edu.repository.EduCourseRepository;
 import com.edu.repository.EduStudyRecordRepository;
 import com.edu.repository.SysUserRepository;
 import com.edu.service.learning.LearningAnalysisService;
+import com.edu.service.CourseResourceProgressService;
 import com.edu.util.SecurityUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -112,6 +114,7 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
     private final LearningAiTraceMapper traceMapper;
     private final CourseAssistantGateway courseAssistantGateway;
     private final ObjectMapper objectMapper;
+    private final CourseResourceProgressService resourceProgressService;
     private final LearningRiskModel riskModel = new LearningRiskModel();
 
     @Override
@@ -535,6 +538,16 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
             if (record.getChapterId() != null) {
                 latestByChapter.merge(record.getChapterId(), record, this::newerRecord);
             }
+        }
+        Long assignmentId = assignment == null ? 0L : assignment.getId();
+        for (ChapterResourceProgressVO summary : resourceProgressService.summarizeChapters(studentId, course.getId(), assignmentId)) {
+            if (!Boolean.TRUE.equals(summary.getHasResourceRecords())) continue;
+            EduStudyRecordPO previous = latestByChapter.get(summary.getChapterId());
+            latestByChapter.put(summary.getChapterId(), EduStudyRecordPO.builder()
+                    .id(previous == null ? null : previous.getId()).studentId(studentId).courseId(course.getId())
+                    .chapterId(summary.getChapterId()).progress(summary.getProgress()).finishStatus(summary.getFinishStatus())
+                    .studyDuration(previous == null ? 0 : defaultNumber(previous.getStudyDuration()))
+                    .lastStudyTime(previous == null ? null : previous.getLastStudyTime()).build());
         }
         int total = chapters.size();
         int finished = 0;

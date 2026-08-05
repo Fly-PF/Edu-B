@@ -13,6 +13,9 @@ import com.edu.pojo.dto.course.CourseStudyRecordRequest;
 import com.edu.pojo.dto.course.CourseUpdateRequest;
 import com.edu.pojo.dto.course.ResourceCreateRequest;
 import com.edu.pojo.dto.course.ResourceUpdateRequest;
+import com.edu.pojo.dto.course.BlockProjectResourceCreateRequest;
+import com.edu.pojo.po.BlockProjectPO;
+import com.edu.pojo.po.EduResourceBlockProjectPO;
 import com.edu.pojo.po.EduChapterPO;
 import com.edu.pojo.po.EduCoursePO;
 import com.edu.pojo.po.EduResourcePO;
@@ -27,6 +30,8 @@ import com.edu.repository.EduCourseClassRepository;
 import com.edu.repository.EduClassStudentRepository;
 import com.edu.repository.EduStudyRecordRepository;
 import com.edu.repository.SysUserRepository;
+import com.edu.mapper.BlockProjectMapper;
+import com.edu.mapper.EduResourceBlockProjectMapper;
 import com.edu.service.CourseResourceStorageService;
 import com.edu.service.CourseService;
 import com.edu.util.SecurityUtil;
@@ -62,6 +67,8 @@ public class CourseServiceImpl implements CourseService {
     private final SysUserRepository userRepository;
     private final CourseResourceStorageService storageService;
     private final ObjectMapper objectMapper;
+    private final BlockProjectMapper blockProjectMapper;
+    private final EduResourceBlockProjectMapper blockResourceMapper;
 
     @Override
     public List<CourseVO> listPublicCourses(String keyword, String grade, Integer difficulty, Integer courseType) {
@@ -481,6 +488,33 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
+    public ResourceVO createBlockProjectResource(Long courseId, Long chapterId, BlockProjectResourceCreateRequest request) {
+        UserInfoDTO user = requireTeacher();
+        requireOwnedCourse(courseId, user);
+        requireChapter(courseId, chapterId);
+        BlockProjectPO project = blockProjectMapper.selectById(request.getProjectId());
+        if (project == null || Objects.equals(project.getDeleted(), 1) || !Objects.equals(project.getVisibility(), 1)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "只能添加作品广场中的公开项目");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        EduResourcePO resource = EduResourcePO.builder()
+                .chapterId(chapterId)
+                .resourceName(StringUtils.hasText(request.getName()) ? request.getName().trim() : project.getTitle())
+                .resourceType(5)
+                .resourceUrl("block-project://" + project.getId())
+                .fileSize(0L)
+                .duration(0)
+                .sort(request.getSortOrder() == null ? nextResourceSort(chapterId) : nonNegative(request.getSortOrder()))
+                .createBy(user.getUserId()).updateBy(user.getUserId()).createTime(now).updateTime(now)
+                .deleted(0).extJson("{}").build();
+        courseRepository.insertResource(resource);
+        blockResourceMapper.insert(EduResourceBlockProjectPO.builder().resourceId(resource.getId())
+                .projectId(project.getId()).createTime(now).build());
+        return toResourceVO(resource);
+    }
+
+    @Override
+    @Transactional
     public ResourceVO uploadResource(Long courseId, Long chapterId, MultipartFile file, Integer duration) {
         UserInfoDTO user = requireTeacher();
         requireOwnedCourse(courseId, user);
@@ -564,8 +598,9 @@ public class CourseServiceImpl implements CourseService {
         requireOwnedCourse(courseId, user);
         requireChapter(courseId, chapterId);
         EduResourcePO resource = requireResource(chapterId, resourceId);
+        blockResourceMapper.deleteById(resourceId);
         courseRepository.deleteResource(resourceId);
-        storageService.delete(resource.getResourceUrl());
+        if (!Objects.equals(resource.getResourceType(), 5)) storageService.delete(resource.getResourceUrl());
     }
 
     private List<ChapterVO> buildChapterVOs(Long courseId) {
@@ -599,6 +634,19 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private ResourceVO toResourceVO(EduResourcePO resource) {
+        // Only block-project resources need the optional relation lookup. Ordinary
+        // video, document, and image resources must not depend on that table.
+        EduResourceBlockProjectPO blockRelation = null;
+        BlockProjectPO blockProject = null;
+        if (Objects.equals(resource.getResourceType(), 5) && resource.getId() != null) {
+            blockRelation = blockResourceMapper.selectById(resource.getId());
+            blockProject = blockRelation == null ? null : blockProjectMapper.selectById(blockRelation.getProjectId());
+        }
+        String blockKind = null;
+        if (blockProject != null && blockProject.getStageJson() != null) {
+            blockKind = blockProject.getStageJson().contains("\"kind\":\"interactive\"") ? "interactive" :
+                    blockProject.getStageJson().contains("\"kind\":\"ai\"") ? "ai" : "free";
+        }
         return ResourceVO.builder()
                 .id(resource.getId())
                 .chapterId(resource.getChapterId())
@@ -612,6 +660,10 @@ public class CourseServiceImpl implements CourseService {
                 .fileSize(resource.getFileSize())
                 .duration(defaultNumber(resource.getDuration()))
                 .sortOrder(defaultNumber(resource.getSort()))
+                .blockProjectId(blockRelation == null ? null : blockRelation.getProjectId())
+                .blockProjectKind(blockKind)
+                .blockProjectAvailable(blockProject != null && Objects.equals(blockProject.getVisibility(), 1)
+                        && !Objects.equals(blockProject.getDeleted(), 1))
                 .createdTime(resource.getCreateTime())
                 .build();
     }
