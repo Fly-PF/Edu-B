@@ -48,6 +48,15 @@ public class RagDocumentRepositoryImpl implements RagDocumentRepository {
     }
 
     @Override
+    public RagDocumentPO selectCourseResourceDocument(Long kbId, Long resourceId) {
+        return ragDocumentMapper.selectOne(new LambdaQueryWrapper<RagDocumentPO>()
+                .eq(RagDocumentPO::getKbId, kbId)
+                .eq(RagDocumentPO::getDeleted, 0)
+                .apply("JSON_UNQUOTE(JSON_EXTRACT(ext_json, '$.courseResourceId')) = {0}", resourceId)
+                .last("limit 1"));
+    }
+
+    @Override
     public List<RagDocumentPO> selectKnowledgeBaseDocuments(Long kbId) {
         return ragDocumentMapper.selectList(new LambdaQueryWrapper<RagDocumentPO>()
                 .eq(RagDocumentPO::getKbId, kbId)

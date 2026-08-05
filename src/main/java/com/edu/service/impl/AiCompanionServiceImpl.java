@@ -24,6 +24,7 @@ import com.edu.service.AiCompanionService;
 import com.edu.service.CourseService;
 import com.edu.service.CourseMaterialRetrievalService;
 import com.edu.service.AiCompanionWebSearchService;
+import com.edu.service.RagService;
 import com.edu.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -52,6 +53,7 @@ public class AiCompanionServiceImpl implements AiCompanionService {
     private final AiCompanionModelService modelService;
     private final CourseMaterialRetrievalService materialRetrievalService;
     private final AiCompanionWebSearchService webSearchService;
+    private final RagService ragService;
 
     @Override
     public AiCompanionContextVO getContext(Long courseId, Long chapterId, Long resourceId) {
@@ -232,13 +234,16 @@ public class AiCompanionServiceImpl implements AiCompanionService {
                 .toList();
         long generationStartedAt = System.nanoTime();
         AiCompanionSafetyPolicy.SafetyDecision safetyDecision = AiCompanionSafetyPolicy.check(question);
-        if (!safetyDecision.blocked() && chapterId != null) {
-            // A student may ask about a concept taught in another chapter, so search the
-            // whole enrolled course rather than only the resource currently on screen.
-            List<ResourceVO> courseResources = courseService.listCourseChapters(session.getCourseId()).stream()
-                    .flatMap(chapter -> courseService.listChapterResources(chapter.getId()).stream())
-                    .toList();
-            List<AiCompanionMaterialExcerpt> materials = materialRetrievalService.retrieve(courseResources, question);
+        if (!safetyDecision.blocked()) {
+            List<AiCompanionMaterialExcerpt> materials = ragService.retrieveCourseMaterials(session.getCourseId(), question);
+            if (materials.isEmpty()) {
+                // A student may ask about a concept taught in another chapter, so search the
+                // whole enrolled course rather than only the resource currently on screen.
+                List<ResourceVO> courseResources = courseService.listCourseChapters(session.getCourseId()).stream()
+                        .flatMap(chapter -> courseService.listChapterResources(chapter.getId()).stream())
+                        .toList();
+                materials = materialRetrievalService.retrieve(courseResources, question);
+            }
             context.setMatchedMaterials(materials);
             if (materials.isEmpty()) {
                 List<AiCompanionWebSource> webSources = webSearchService.search(question);

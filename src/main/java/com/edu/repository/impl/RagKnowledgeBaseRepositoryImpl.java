@@ -50,6 +50,14 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
     }
 
     @Override
+    public RagKnowledgeBasePO selectCourseKnowledgeBase(Long courseId) {
+        return ragKnowledgeBaseMapper.selectOne(new LambdaQueryWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getCourseId, courseId)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .last("limit 1"));
+    }
+
+    @Override
     public RagKnowledgeBasePO selectPublicKnowledgeBaseById(Long id) {
         return ragKnowledgeBaseMapper.selectOne(new LambdaQueryWrapper<RagKnowledgeBasePO>()
                 .eq(RagKnowledgeBasePO::getId, id)
@@ -87,6 +95,15 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
                 .eq(RagKnowledgeBasePO::getId, kbId)
                 .eq(RagKnowledgeBasePO::getUserId, userId)
                 .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .set(RagKnowledgeBasePO::getDeleted, 1)
+                .set(RagKnowledgeBasePO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    @Override
+    public int logicalDeleteCourseKnowledgeBase(Long courseId) {
+        return ragKnowledgeBaseMapper.update(new LambdaUpdateWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getCourseId, courseId)
                 .eq(RagKnowledgeBasePO::getDeleted, 0)
                 .set(RagKnowledgeBasePO::getDeleted, 1)
                 .set(RagKnowledgeBasePO::getUpdateTime, LocalDateTime.now()));

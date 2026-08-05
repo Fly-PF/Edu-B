@@ -14,6 +14,8 @@ public interface RagKnowledgeBaseRepository {
 
     RagKnowledgeBasePO selectKnowledgeBaseById(Long id);
 
+    RagKnowledgeBasePO selectCourseKnowledgeBase(Long courseId);
+
     RagKnowledgeBasePO selectPublicKnowledgeBaseById(Long id);
 
     RagKnowledgeBasePO selectSelectableKnowledgeBase(Long userId, Long id);
@@ -21,6 +23,8 @@ public interface RagKnowledgeBaseRepository {
     int updateKnowledgeBase(RagKnowledgeBasePO knowledgeBase);
 
     int logicalDeleteKnowledgeBase(Long kbId, Long userId);
+
+    int logicalDeleteCourseKnowledgeBase(Long courseId);
 
     List<RagKnowledgeBasePO> selectUserKnowledgeBases(Long userId, String keyword, Integer status, Integer isPublic,
                                                       Integer kbType);

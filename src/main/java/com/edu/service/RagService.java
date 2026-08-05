@@ -4,6 +4,7 @@ import com.edu.common.PageResult;
 import com.edu.pojo.dto.rag.RagChatRequest;
 import com.edu.pojo.dto.rag.RagChatSessionCreateRequest;
 import com.edu.pojo.dto.rag.RagChatSessionRenameRequest;
+import com.edu.pojo.vo.ai.AiCompanionMaterialExcerpt;
 import com.edu.pojo.vo.rag.RagChatMessageVO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
 import com.edu.pojo.vo.rag.RagChatSessionVO;
@@ -71,4 +72,14 @@ public interface RagService {
     void deleteKnowledgeBaseDocument(Long kbId, Long docId);
 
     void uploadKnowledgeBaseDocument(HttpServletRequest request, MultipartFile file, String description, Long kbId);
+
+    void ensureCourseKnowledgeBase(Long courseId, Long ownerId, String courseName, String description);
+
+    void uploadCourseResourceDocument(Long courseId, Long resourceId, MultipartFile file, String description);
+
+    void deleteCourseResourceDocument(Long courseId, Long resourceId);
+
+    void deleteCourseKnowledgeBase(Long courseId);
+
+    List<AiCompanionMaterialExcerpt> retrieveCourseMaterials(Long courseId, String question);
 }

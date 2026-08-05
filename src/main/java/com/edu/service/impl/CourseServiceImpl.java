@@ -34,6 +34,7 @@ import com.edu.mapper.BlockProjectMapper;
 import com.edu.mapper.EduResourceBlockProjectMapper;
 import com.edu.service.CourseResourceStorageService;
 import com.edu.service.CourseService;
+import com.edu.service.RagService;
 import com.edu.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -66,6 +67,7 @@ public class CourseServiceImpl implements CourseService {
     private final EduStudyRecordRepository studyRecordRepository;
     private final SysUserRepository userRepository;
     private final CourseResourceStorageService storageService;
+    private final RagService ragService;
     private final ObjectMapper objectMapper;
     private final BlockProjectMapper blockProjectMapper;
     private final EduResourceBlockProjectMapper blockResourceMapper;
@@ -243,6 +245,7 @@ public class CourseServiceImpl implements CourseService {
                 .likeCount(0)
                 .build();
         courseRepository.insertCourse(course);
+        ragService.ensureCourseKnowledgeBase(course.getId(), user.getUserId(), course.getCourseName(), course.getIntro());
         return toCourseVO(course, user);
     }
 
@@ -326,6 +329,7 @@ public class CourseServiceImpl implements CourseService {
         List<Long> chapterIds = chapters.stream().map(EduChapterPO::getId).toList();
         List<EduResourcePO> resources = courseRepository.selectResourcesByChapterIds(chapterIds);
 
+        ragService.deleteCourseKnowledgeBase(courseId);
         courseClassRepository.deleteByCourseId(courseId);
         courseRepository.deleteStudyRecordsByChapterIds(chapterIds);
         courseRepository.deleteResourcesByChapterIds(chapterIds);
@@ -431,6 +435,7 @@ public class CourseServiceImpl implements CourseService {
         requireOwnedCourse(courseId, user);
         EduChapterPO chapter = requireChapter(courseId, chapterId);
         List<EduResourcePO> resources = courseRepository.selectResourcesByChapterId(chapter.getId());
+        resources.forEach(resource -> ragService.deleteCourseResourceDocument(courseId, resource.getId()));
         courseRepository.deleteStudyRecordsByChapterIds(List.of(chapterId));
         courseRepository.deleteResourcesByChapterIds(List.of(chapterId));
         courseRepository.deleteChapter(chapterId);
@@ -517,8 +522,9 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public ResourceVO uploadResource(Long courseId, Long chapterId, MultipartFile file, Integer duration) {
         UserInfoDTO user = requireTeacher();
-        requireOwnedCourse(courseId, user);
+        EduCoursePO course = requireOwnedCourse(courseId, user);
         requireChapter(courseId, chapterId);
+        ragService.ensureCourseKnowledgeBase(courseId, user.getUserId(), course.getCourseName(), course.getIntro());
         CourseResourceStorageService.StoredCourseFile storedFile = storageService.upload(courseId, file);
         LocalDateTime now = LocalDateTime.now();
         EduResourcePO resource = EduResourcePO.builder()
@@ -538,6 +544,9 @@ public class CourseServiceImpl implements CourseService {
                 .build();
         try {
             courseRepository.insertResource(resource);
+            if (isRagResource(resource)) {
+                ragService.uploadCourseResourceDocument(courseId, resource.getId(), file, resource.getResourceName());
+            }
         } catch (RuntimeException ex) {
             storageService.delete(storedFile.objectName());
             throw ex;
@@ -598,6 +607,7 @@ public class CourseServiceImpl implements CourseService {
         requireOwnedCourse(courseId, user);
         requireChapter(courseId, chapterId);
         EduResourcePO resource = requireResource(chapterId, resourceId);
+        ragService.deleteCourseResourceDocument(courseId, resourceId);
         blockResourceMapper.deleteById(resourceId);
         courseRepository.deleteResource(resourceId);
         if (!Objects.equals(resource.getResourceType(), 5)) storageService.delete(resource.getResourceUrl());
@@ -666,6 +676,10 @@ public class CourseServiceImpl implements CourseService {
                         && !Objects.equals(blockProject.getDeleted(), 1))
                 .createdTime(resource.getCreateTime())
                 .build();
+    }
+
+    private boolean isRagResource(EduResourcePO resource) {
+        return Objects.equals(resource.getResourceType(), 2) || Objects.equals(resource.getResourceType(), 3);
     }
 
     private CourseStudyRecordVO toStudyRecordVO(EduStudyRecordPO record) {

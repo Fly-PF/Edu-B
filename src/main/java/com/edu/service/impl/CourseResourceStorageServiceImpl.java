@@ -29,7 +29,7 @@ public class CourseResourceStorageServiceImpl implements CourseResourceStorageSe
     private static final String COURSE_DIR = "course/";
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "mp4", "webm", "mov", "m4v",
-            "pdf",
+            "pdf", "ppt", "pptx", "txt", "md", "doc", "docx",
             "jpg", "jpeg", "png", "webp",
             "csv", "xls", "xlsx", "zip"
     );
@@ -39,6 +39,12 @@ public class CourseResourceStorageServiceImpl implements CourseResourceStorageSe
             Map.entry("mov", 1),
             Map.entry("m4v", 1),
             Map.entry("pdf", 2),
+            Map.entry("ppt", 2),
+            Map.entry("pptx", 2),
+            Map.entry("txt", 2),
+            Map.entry("md", 2),
+            Map.entry("doc", 2),
+            Map.entry("docx", 2),
             Map.entry("jpg", 3),
             Map.entry("jpeg", 3),
             Map.entry("png", 3),

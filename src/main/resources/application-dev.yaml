@@ -4,22 +4,22 @@ edu:
     public-base-url: ${COURSE_STORAGE_PUBLIC_BASE_URL:http://localhost:8080}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: 192.168.40.135
-    port: 3306
-    database: edu
-    username: root
-    password: root
+    host: ${EDU_MYSQL_HOST:127.0.0.1}
+    port: ${EDU_MYSQL_PORT:3306}
+    database: ${EDU_MYSQL_DATABASE:edu}
+    username: ${EDU_MYSQL_USERNAME:root}
+    password: ${EDU_MYSQL_PASSWORD:root}
   redis:
-    host: 192.168.40.135
-    port: 6379
-    password: root
-    database: 6
+    host: ${EDU_REDIS_HOST:127.0.0.1}
+    port: ${EDU_REDIS_PORT:6379}
+    password: ${EDU_REDIS_PASSWORD:root}
+    database: ${EDU_REDIS_DATABASE:6}
   minio:
-    endpoint: http://192.168.40.135:9000
-    access_key: root
-    secret_key: rootroot
-    bucker_name: edu
-    public_base_url: http://localhost:8080
+    endpoint: ${EDU_MINIO_ENDPOINT:http://127.0.0.1:9000}
+    access_key: ${EDU_MINIO_ACCESS_KEY:root}
+    secret_key: ${EDU_MINIO_SECRET_KEY:rootroot}
+    bucker_name: ${EDU_MINIO_BUCKET:edu}
+    public_base_url: ${EDU_MINIO_PUBLIC_BASE_URL:http://localhost:8080}
     avatar:
       avatar_files_base_url: avatar/files/
       default_avatar: avatar/default_avatar.png
@@ -29,9 +29,9 @@ edu:
       max_ref_rag_kb_count: 10
       max_ref_rag_doc_count: 100
   milvus:
-    endpoint: http://192.168.40.135:19530
-    token: rootroot
-    database_name: Edu
+    endpoint: ${EDU_MILVUS_ENDPOINT:http://127.0.0.1:19530}
+    token: ${EDU_MILVUS_TOKEN:rootroot}
+    database_name: ${EDU_MILVUS_DATABASE_NAME:Edu}
     rag:
       top_k: 8
       score_threshold: 0.6
@@ -41,8 +41,8 @@ edu:
         metric_type: COSINE
   ai-model:
     openai:
-      api-key: ${OPENAI_API_KEY}
-      base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1}
       chat-model:
         max-history-message-count: 20
         model-type: multimodel

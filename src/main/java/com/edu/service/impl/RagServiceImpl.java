@@ -19,6 +19,7 @@ import com.edu.pojo.po.RagKbUserCollectionPO;
 import com.edu.pojo.po.RagKnowledgeBasePO;
 import com.edu.pojo.po.RagMsgDocRefPO;
 import com.edu.pojo.po.RagSessionKbRefPO;
+import com.edu.pojo.vo.ai.AiCompanionMaterialExcerpt;
 import com.edu.pojo.vo.rag.RagChatDocRefVO;
 import com.edu.pojo.vo.rag.RagChatImageVO;
 import com.edu.pojo.vo.rag.RagChatMessageVO;
@@ -90,12 +91,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class RagServiceImpl implements RagService {
     private static final long LEGACY_COURSE_ID = -1L;
+    private static final int COURSE_KNOWLEDGE_BASE_TYPE = 2;
+    private static final int MAX_COURSE_MATERIAL_EXCERPTS = 3;
+    private static final Pattern SOURCE_NUMBER_PATTERN = Pattern.compile("(\\d+)");
     private static final String COURSE_KNOWLEDGE_BASE_FORBIDDEN_MESSAGE = "无权操作课程知识库";
     private static final String RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX = "rag_file_upload_extract_flag_";
     private static final long RAG_FILE_UPLOAD_EXTRACT_FLAG_EXPIRE_MINUTES = 5L;
@@ -1432,32 +1438,156 @@ public class RagServiceImpl implements RagService {
         validateUploadRequest(request, kbId, file);
         UserInfoDTO loginUser = getLoginUser();
         validateKnowledgeBaseForUpload(kbId, loginUser.getUserId());
-        String extractFlagKey = RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX + loginUser.getUserId();
+        uploadDocumentInternal(file, description, kbId, loginUser.getUserId(), null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void ensureCourseKnowledgeBase(Long courseId, Long ownerId, String courseName, String description) {
+        validateCourseIdentifiers(courseId, ownerId);
+        if (!StringUtils.hasText(courseName)) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程名称不能为空");
+        }
+
+        RagKnowledgeBasePO existing = ragKnowledgeBaseRepository.selectCourseKnowledgeBase(courseId);
+        if (existing != null) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        RagKnowledgeBasePO knowledgeBase = RagKnowledgeBasePO.builder()
+                .userId(ownerId)
+                .kbName(courseName.trim() + "课程知识库")
+                .kbCover("course-kb://" + courseId)
+                .description(StringUtils.hasText(description) ? description.trim() : null)
+                .kbType(COURSE_KNOWLEDGE_BASE_TYPE)
+                .publicFlag(0)
+                .status(1)
+                .courseId(courseId)
+                .deleted(0)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        if (ragKnowledgeBaseRepository.insertKnowledgeBase(knowledgeBase) != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "课程知识库创建失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void uploadCourseResourceDocument(Long courseId, Long resourceId, MultipartFile file, String description) {
+        validateCourseResourceIdentifiers(courseId, resourceId);
+        validateRagFile(file);
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectCourseKnowledgeBase(courseId);
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程知识库不存在");
+        }
+        uploadDocumentInternal(file, description, knowledgeBase.getId(), knowledgeBase.getUserId(), resourceId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCourseResourceDocument(Long courseId, Long resourceId) {
+        validateCourseIdentifiers(courseId, null);
+        if (resourceId == null || resourceId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程资源ID无效");
+        }
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectCourseKnowledgeBase(courseId);
+        if (knowledgeBase == null) {
+            return;
+        }
+        RagDocumentPO document = ragDocumentRepository.selectCourseResourceDocument(knowledgeBase.getId(), resourceId);
+        if (document == null) {
+            return;
+        }
+        if (ragDocumentRepository.logicalDeleteKnowledgeBaseDocument(knowledgeBase.getId(), document.getId()) != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "课程知识库文档删除失败");
+        }
+        ragRepository.logicalDeleteVectorChunks(knowledgeBase.getId(), document.getId());
+        ragRepository.deleteObject(document.getFileUrl());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCourseKnowledgeBase(Long courseId) {
+        validateCourseIdentifiers(courseId, null);
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectCourseKnowledgeBase(courseId);
+        if (knowledgeBase == null) {
+            return;
+        }
+        List<RagDocumentPO> documents = ragDocumentRepository.selectKnowledgeBaseDocuments(knowledgeBase.getId());
+        ragDocumentRepository.logicalDeleteKnowledgeBaseDocuments(knowledgeBase.getId());
+        if (ragKnowledgeBaseRepository.logicalDeleteCourseKnowledgeBase(courseId) != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "课程知识库删除失败");
+        }
+        ragRepository.logicalDeleteKnowledgeBaseVectorChunks(knowledgeBase.getId());
+        documents.forEach(document -> ragRepository.deleteObject(document.getFileUrl()));
+    }
+
+    @Override
+    public List<AiCompanionMaterialExcerpt> retrieveCourseMaterials(Long courseId, String question) {
+        if (courseId == null || courseId <= 0 || !StringUtils.hasText(question)) {
+            return List.of();
+        }
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectCourseKnowledgeBase(courseId);
+        if (knowledgeBase == null || !Integer.valueOf(1).equals(knowledgeBase.getStatus())) {
+            return List.of();
+        }
+
+        try {
+            List<RagRepository.RagSearchChunk> chunks = ragRepository.searchVectorChunks(
+                    textEmbeddingUtil.embed(question.trim()).getVector(), List.of(knowledgeBase.getId()));
+            if (chunks.isEmpty()) {
+                return List.of();
+            }
+            Map<Long, String> namesByDocumentId = ragDocumentRepository.selectDocumentsByIds(
+                            chunks.stream().map(RagRepository.RagSearchChunk::docId).distinct().toList())
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(RagDocumentPO::getId, RagDocumentPO::getDocName));
+            return chunks.stream()
+                    .limit(MAX_COURSE_MATERIAL_EXCERPTS)
+                    .map(chunk -> new AiCompanionMaterialExcerpt(
+                            namesByDocumentId.getOrDefault(chunk.docId(), "课程资料"),
+                            parseSourcePage(chunk.sourceInfo()),
+                            chunk.content()))
+                    .toList();
+        } catch (RuntimeException ex) {
+            log.warn("课程知识库检索失败，回退到其他课程资料来源，courseId={}", courseId, ex);
+            return List.of();
+        }
+    }
+
+    private void uploadDocumentInternal(MultipartFile file, String description, Long kbId, Long ownerId,
+                                        Long courseResourceId) {
+        String extractFlagKey = RAG_FILE_UPLOAD_EXTRACT_FLAG_PREFIX + ownerId;
         Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(
                 extractFlagKey, "1", RAG_FILE_UPLOAD_EXTRACT_FLAG_EXPIRE_MINUTES, TimeUnit.MINUTES);
         if (!Boolean.TRUE.equals(locked)) {
             throw new BaseException(HttpStatus.CONFLICT, "请等待上次文件解析结束！");
         }
-
-        List<RagTextChunkDTO> textChunks = extractText(file);
-        String objectName = buildObjectName(loginUser.getUserId(), file);
-
-        uploadFile(file, objectName);
-
-        RagDocumentPO document = buildDocument(kbId, file, description, objectName);
+        String objectName = null;
+        RagDocumentPO document = null;
         try {
+            List<RagTextChunkDTO> textChunks = extractText(file);
+            objectName = buildObjectName(ownerId, file);
+            uploadFile(file, objectName);
+            document = buildDocument(kbId, file, description, objectName, courseResourceId);
             if (ragDocumentRepository.insertDocument(document) != 1 || document.getId() == null) {
                 throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG文档保存失败");
             }
-
             ragRepository.insertVectorChunks(buildVectorChunks(textChunks, kbId, document.getId()));
-            stringRedisTemplate.delete(extractFlagKey);
         } catch (RuntimeException ex) {
             RuntimeException rollbackEx = rollbackUploadedRag(document, kbId, objectName);
             if (rollbackEx != null) {
                 ex.addSuppressed(rollbackEx);
             }
             throw ex;
+        } finally {
+            try {
+                stringRedisTemplate.delete(extractFlagKey);
+            } catch (RuntimeException ex) {
+                log.warn("清理RAG文件解析锁失败，key={}", extractFlagKey, ex);
+            }
         }
     }
 
@@ -1586,6 +1716,22 @@ public class RagServiceImpl implements RagService {
         }
     }
 
+    private void validateCourseIdentifiers(Long courseId, Long ownerId) {
+        if (courseId == null || courseId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程ID无效");
+        }
+        if (ownerId != null && ownerId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程创建人ID无效");
+        }
+    }
+
+    private void validateCourseResourceIdentifiers(Long courseId, Long resourceId) {
+        validateCourseIdentifiers(courseId, null);
+        if (resourceId == null || resourceId <= 0) {
+            throw new BaseException(HttpStatus.BAD_REQUEST, "课程资源ID无效");
+        }
+    }
+
     private void validateKnowledgeBaseForUpload(Long kbId, Long userId) {
         RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId, userId);
         if (knowledgeBase == null || knowledgeBase.getDeleted() == null || knowledgeBase.getDeleted() == 1) {
@@ -1596,7 +1742,8 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private RagDocumentPO buildDocument(Long kbId, MultipartFile file, String description, String fileUrl) {
+    private RagDocumentPO buildDocument(Long kbId, MultipartFile file, String description, String fileUrl,
+                                        Long courseResourceId) {
         String docName = getOriginalFileName(file);
         String docType = getDocumentType(docName);
         LocalDateTime now = LocalDateTime.now();
@@ -1606,6 +1753,8 @@ public class RagServiceImpl implements RagService {
                 .docType(docType)
                 .description(StringUtils.hasText(description) ? description.trim() : null)
                 .fileUrl(fileUrl)
+                .extJson(courseResourceId == null ? null
+                        : objectMapper.createObjectNode().put("courseResourceId", courseResourceId).toString())
                 .createTime(now)
                 .updateTime(now)
                 .deleted(0)
@@ -1631,16 +1780,33 @@ public class RagServiceImpl implements RagService {
             }
         }
 
-        try {
-            ragRepository.deleteObjectStrict(objectName);
-        } catch (RuntimeException ex) {
-            if (rollbackEx == null) {
-                rollbackEx = ex;
-            } else {
-                rollbackEx.addSuppressed(ex);
+        if (StringUtils.hasText(objectName)) {
+            try {
+                ragRepository.deleteObjectStrict(objectName);
+            } catch (RuntimeException ex) {
+                if (rollbackEx == null) {
+                    rollbackEx = ex;
+                } else {
+                    rollbackEx.addSuppressed(ex);
+                }
             }
         }
         return rollbackEx;
+    }
+
+    private Integer parseSourcePage(String sourceInfo) {
+        if (!StringUtils.hasText(sourceInfo)) {
+            return 1;
+        }
+        Matcher matcher = SOURCE_NUMBER_PATTERN.matcher(sourceInfo);
+        if (!matcher.find()) {
+            return 1;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException ex) {
+            return 1;
+        }
     }
 
     private String getOriginalFileName(MultipartFile file) {

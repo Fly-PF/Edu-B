@@ -14,6 +14,8 @@ public interface RagDocumentRepository {
 
     RagDocumentPO selectKnowledgeBaseDocument(Long kbId, String fileUrl);
 
+    RagDocumentPO selectCourseResourceDocument(Long kbId, Long resourceId);
+
     List<RagDocumentPO> selectKnowledgeBaseDocuments(Long kbId);
 
     List<RagDocumentPO> selectDocumentsByIds(List<Long> documentIds);
