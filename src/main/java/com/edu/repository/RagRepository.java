@@ -18,6 +18,8 @@ public interface RagRepository {
 
     void logicalDeleteVectorChunks(Long kbId, Long docId);
 
+    void logicalDeleteKnowledgeBaseVectorChunks(Long kbId);
+
     List<RagSearchChunk> searchVectorChunks(float[] vector, List<Long> kbIds);
 
     record RagSearchChunk(Long kbId, Long docId, String sourceInfo, String content, Float score) {

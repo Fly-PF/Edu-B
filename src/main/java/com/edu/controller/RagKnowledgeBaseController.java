@@ -13,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -116,6 +118,13 @@ public class RagKnowledgeBaseController {
                                             @RequestPart(value = "kb_cover", required = false) MultipartFile file) {
         ragService.updateKnowledgeBase(kbId, kbName, description, kbType, isPublic, status, file);
         return Result.setResult(HttpStatus.OK, "更新成功");
+    }
+
+    @Operation(summary = "删除知识库")
+    @DeleteMapping("/kb/{kbId}")
+    public Result<Void> deleteKnowledgeBase(@PathVariable("kbId") @NotNull @Min(1) Long kbId) {
+        ragService.deleteKnowledgeBase(kbId);
+        return Result.setResult(HttpStatus.OK, "删除成功");
     }
 
     @Operation(summary = "获取知识库封面")

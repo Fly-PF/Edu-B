@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -78,6 +79,17 @@ public class RagKnowledgeBaseRepositoryImpl implements RagKnowledgeBaseRepositor
         return ragKnowledgeBaseMapper.update(knowledgeBase, new LambdaUpdateWrapper<RagKnowledgeBasePO>()
                 .eq(RagKnowledgeBasePO::getId, knowledgeBase.getId())
                 .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID));
+    }
+
+    @Override
+    public int logicalDeleteKnowledgeBase(Long kbId, Long userId) {
+        return ragKnowledgeBaseMapper.update(new LambdaUpdateWrapper<RagKnowledgeBasePO>()
+                .eq(RagKnowledgeBasePO::getId, kbId)
+                .eq(RagKnowledgeBasePO::getUserId, userId)
+                .eq(RagKnowledgeBasePO::getCourseId, LEGACY_COURSE_ID)
+                .eq(RagKnowledgeBasePO::getDeleted, 0)
+                .set(RagKnowledgeBasePO::getDeleted, 1)
+                .set(RagKnowledgeBasePO::getUpdateTime, LocalDateTime.now()));
     }
 
     @Override

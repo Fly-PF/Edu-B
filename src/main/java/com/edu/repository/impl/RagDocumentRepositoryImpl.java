@@ -88,6 +88,15 @@ public class RagDocumentRepositoryImpl implements RagDocumentRepository {
     }
 
     @Override
+    public int logicalDeleteKnowledgeBaseDocuments(Long kbId) {
+        return ragDocumentMapper.update(new LambdaUpdateWrapper<RagDocumentPO>()
+                .eq(RagDocumentPO::getKbId, kbId)
+                .eq(RagDocumentPO::getDeleted, 0)
+                .set(RagDocumentPO::getDeleted, 1)
+                .set(RagDocumentPO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    @Override
     public IPage<RagDocumentPO> selectKnowledgeBaseDocumentPage(long pageNum, long pageSize, Long kbId, String docType,
                                                                 String docName) {
         LambdaQueryWrapper<RagDocumentPO> queryWrapper = new LambdaQueryWrapper<RagDocumentPO>()

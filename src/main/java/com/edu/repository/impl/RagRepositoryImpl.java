@@ -151,6 +151,15 @@ public class RagRepositoryImpl implements RagRepository {
 
     @Override
     public void logicalDeleteVectorChunks(Long kbId, Long docId) {
+        logicalDeleteVectorChunks("kb_id == " + kbId + " and doc_id == " + docId + " and deleted == 0");
+    }
+
+    @Override
+    public void logicalDeleteKnowledgeBaseVectorChunks(Long kbId) {
+        logicalDeleteVectorChunks("kb_id == " + kbId + " and deleted == 0");
+    }
+
+    private void logicalDeleteVectorChunks(String filter) {
         validateMilvusProperties();
 
         MilvusClientV2 client = null;
@@ -164,7 +173,7 @@ public class RagRepositoryImpl implements RagRepository {
             QueryResp queryResp = client.query(QueryReq.builder()
                     .databaseName(milvusProperties.getDatabaseName())
                     .collectionName(collectionName)
-                    .filter("kb_id == " + kbId + " and doc_id == " + docId + " and deleted == 0")
+                    .filter(filter)
                     .outputFields(List.of("id", "kb_id", "doc_id", "source_info", "content", "vector", "metadata", "create_time"))
                     .limit(16384)
                     .build());
@@ -173,6 +182,35 @@ public class RagRepositoryImpl implements RagRepository {
                 return;
             }
 
+            try {
+                client.upsert(UpsertReq.builder()
+                        .databaseName(milvusProperties.getDatabaseName())
+                        .collectionName(collectionName)
+                        .data(data)
+                        .build());
+                client.flush(FlushReq.builder()
+                        .collectionNames(List.of(collectionName))
+                        .build());
+            } catch (Exception ex) {
+                restoreLogicalDeletedVectorChunks(client, collectionName, data, ex);
+                throw ex;
+            }
+        } catch (Exception ex) {
+            log.error("逻辑删除RAG向量失败，filter={}", filter, ex);
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG向量删除失败");
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+        }
+    }
+
+    private void restoreLogicalDeletedVectorChunks(MilvusClientV2 client, String collectionName, List<JsonObject> data,
+                                                   Exception originException) {
+        try {
+            for (JsonObject row : data) {
+                row.addProperty("deleted", 0);
+            }
             client.upsert(UpsertReq.builder()
                     .databaseName(milvusProperties.getDatabaseName())
                     .collectionName(collectionName)
@@ -181,13 +219,8 @@ public class RagRepositoryImpl implements RagRepository {
             client.flush(FlushReq.builder()
                     .collectionNames(List.of(collectionName))
                     .build());
-        } catch (Exception ex) {
-            log.error("逻辑删除RAG向量失败，kbId={}, docId={}", kbId, docId, ex);
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "RAG向量删除失败");
-        } finally {
-            if (client != null) {
-                client.close();
-            }
+        } catch (Exception rollbackException) {
+            originException.addSuppressed(rollbackException);
         }
     }
 

@@ -22,6 +22,8 @@ public interface RagDocumentRepository {
 
     int logicalDeleteKnowledgeBaseDocument(Long kbId, Long documentId);
 
+    int logicalDeleteKnowledgeBaseDocuments(Long kbId);
+
     IPage<RagDocumentPO> selectKnowledgeBaseDocumentPage(long pageNum, long pageSize, Long kbId, String docType,
                                                          String docName);
 }

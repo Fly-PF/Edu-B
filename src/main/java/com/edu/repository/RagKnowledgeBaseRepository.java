@@ -20,6 +20,8 @@ public interface RagKnowledgeBaseRepository {
 
     int updateKnowledgeBase(RagKnowledgeBasePO knowledgeBase);
 
+    int logicalDeleteKnowledgeBase(Long kbId, Long userId);
+
     List<RagKnowledgeBasePO> selectUserKnowledgeBases(Long userId, String keyword, Integer status, Integer isPublic,
                                                       Integer kbType);
 

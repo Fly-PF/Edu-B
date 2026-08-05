@@ -1351,6 +1351,32 @@ public class RagServiceImpl implements RagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void deleteKnowledgeBase(Long kbId) {
+        UserInfoDTO loginUser = getLoginUser();
+        validateKnowledgeBaseId(kbId);
+
+        RagKnowledgeBasePO existing = ragKnowledgeBaseRepository.selectKnowledgeBaseById(kbId);
+        if (existing == null || existing.getDeleted() == null || existing.getDeleted() == 1) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在或已删除");
+        }
+        if (!Long.valueOf(LEGACY_COURSE_ID).equals(existing.getCourseId())) {
+            throw new BaseException(HttpStatus.FORBIDDEN, COURSE_KNOWLEDGE_BASE_FORBIDDEN_MESSAGE);
+        }
+
+        RagKnowledgeBasePO knowledgeBase = ragKnowledgeBaseRepository.selectLegacyKnowledgeBaseById(kbId, loginUser.getUserId());
+        if (knowledgeBase == null) {
+            throw new BaseException(HttpStatus.NOT_FOUND, "知识库不存在或已删除");
+        }
+
+        ragDocumentRepository.logicalDeleteKnowledgeBaseDocuments(kbId);
+        if (ragKnowledgeBaseRepository.logicalDeleteKnowledgeBase(kbId, loginUser.getUserId()) != 1) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "知识库删除失败");
+        }
+        ragRepository.logicalDeleteKnowledgeBaseVectorChunks(kbId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateKnowledgeBaseDocument(Long kbId, Long docId, String docName, String description) {
         UserInfoDTO loginUser = getLoginUser();
         validateKnowledgeBaseId(kbId);
