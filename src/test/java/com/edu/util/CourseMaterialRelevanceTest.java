@@ -14,6 +14,34 @@ class CourseMaterialRelevanceTest {
     }
 
     @Test
+    void matchesStudentFriendlyParaphraseAgainstAiAlias() {
+        assertTrue(CourseMaterialRelevance.matches(
+                "请用初中生能理解的方式解释人工智能是什么？",
+                "AI 是让计算机完成通常需要人类智慧才能完成的任务的技术。"));
+    }
+
+    @Test
+    void matchesChineseConceptWhenPdfExtractionAddsSpaces() {
+        assertTrue(CourseMaterialRelevance.matches(
+                "请用初中生能理解的方式解释人工智能是什么？",
+                "人 工 智 能 是让计算机完成任务的技术。"));
+    }
+
+    @Test
+    void matchesMachineLearningAlias() {
+        assertTrue(CourseMaterialRelevance.matches(
+                "请介绍机器学习的基本概念。",
+                "Machine learning allows a model to learn patterns from data."));
+    }
+
+    @Test
+    void doesNotTreatAiInsideAnEnglishWordAsCourseEvidence() {
+        assertFalse(CourseMaterialRelevance.matches(
+                "请用初中生能理解的方式解释人工智能是什么？",
+                "Please send the homework to this email address after class."));
+    }
+
+    @Test
     void rejectsUnrelatedScienceQuestion() {
         assertFalse(CourseMaterialRelevance.matches(
                 "请解释量子纠缠是什么？",
