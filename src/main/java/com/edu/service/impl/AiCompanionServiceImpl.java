@@ -25,7 +25,10 @@ import com.edu.service.CourseService;
 import com.edu.service.CourseMaterialRetrievalService;
 import com.edu.service.AiCompanionWebSearchService;
 import com.edu.service.RagService;
+import com.edu.service.safety.SafetyGatewaySupport;
 import com.edu.util.SecurityUtil;
+import com.edu.pojo.enums.safety.SafetyScene;
+import com.edu.pojo.enums.safety.SafetySourceModule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -54,6 +57,7 @@ public class AiCompanionServiceImpl implements AiCompanionService {
     private final CourseMaterialRetrievalService materialRetrievalService;
     private final AiCompanionWebSearchService webSearchService;
     private final RagService ragService;
+    private final SafetyGatewaySupport safetyGatewaySupport;
 
     @Override
     public AiCompanionContextVO getContext(Long courseId, Long chapterId, Long resourceId) {
@@ -224,6 +228,17 @@ public class AiCompanionServiceImpl implements AiCompanionService {
         String question = request.getQuestion().trim();
         validateLength(question, MAX_QUESTION_LENGTH, "问题内容过长");
 
+        String safeQuestion = safetyGatewaySupport.enforceInputText(
+                SafetySourceModule.AI_COMPANION,
+                SafetyScene.STUDENT_AI,
+                null,
+                question,
+                Map.of(
+                        "entryPoint", "ai-companion-service",
+                        "sessionId", String.valueOf(sessionId),
+                        "courseId", String.valueOf(session.getCourseId())
+                )
+        );
         Long chapterId = request.getChapterId() == null ? session.getChapterId() : request.getChapterId();
         validateChapter(session.getCourseId(), chapterId);
         validateResource(chapterId, request.getResourceId());
@@ -233,33 +248,33 @@ public class AiCompanionServiceImpl implements AiCompanionService {
                 .map(this::toMessageVO)
                 .toList();
         long generationStartedAt = System.nanoTime();
-        AiCompanionSafetyPolicy.SafetyDecision safetyDecision = AiCompanionSafetyPolicy.check(question);
+        AiCompanionSafetyPolicy.SafetyDecision safetyDecision = AiCompanionSafetyPolicy.check(safeQuestion);
         if (!safetyDecision.blocked()) {
-            List<AiCompanionMaterialExcerpt> materials = ragService.retrieveCourseMaterials(session.getCourseId(), question);
+            List<AiCompanionMaterialExcerpt> materials = ragService.retrieveCourseMaterials(session.getCourseId(), safeQuestion);
             if (materials.isEmpty()) {
                 // A student may ask about a concept taught in another chapter, so search the
                 // whole enrolled course rather than only the resource currently on screen.
                 List<ResourceVO> courseResources = courseService.listCourseChapters(session.getCourseId()).stream()
                         .flatMap(chapter -> courseService.listChapterResources(chapter.getId()).stream())
                         .toList();
-                materials = materialRetrievalService.retrieve(courseResources, question);
+                materials = materialRetrievalService.retrieve(courseResources, safeQuestion);
             }
             context.setMatchedMaterials(materials);
             if (materials.isEmpty()) {
-                List<AiCompanionWebSource> webSources = webSearchService.search(question);
+                List<AiCompanionWebSource> webSources = webSearchService.search(safeQuestion);
                 context.setWebSources(webSources);
             }
         }
         AiCompanionModelResult modelResult = safetyDecision.blocked()
                 ? blockedResult(context, safetyDecision)
-                : modelService.generateAnswer(context, history, question);
+                : modelService.generateAnswer(context, history, safeQuestion);
         long responseTimeMs = Math.max(0, (System.nanoTime() - generationStartedAt) / 1_000_000);
         String answer = modelResult.content();
         validateLength(answer, MAX_ANSWER_LENGTH, "回答内容过长");
 
         LocalDateTime now = LocalDateTime.now();
         List<AiCompanionMessageVO> saved = new ArrayList<>();
-        saved.add(saveMessage(session, student.getUserId(), "USER", question, chapterId, request.getResourceId(), null, null, null, safetyDecision.status(), null, now));
+        saved.add(saveMessage(session, student.getUserId(), "USER", safeQuestion, chapterId, request.getResourceId(), null, null, null, safetyDecision.status(), null, now));
         saved.add(saveMessage(session, student.getUserId(), "ASSISTANT", answer, chapterId, request.getResourceId(), modelResult.mode(), modelResult.modelName(), modelResult.sourceSummary(), modelResult.safetyStatus(), responseTimeMs, now.plusNanos(1)));
         companionRepository.updateSessionActivity(sessionId, now);
         return saved;

@@ -87,3 +87,11 @@ edu:
         version: ${TENCENT_FACE_VERSION:2020-03-03}
         compare-threshold: ${TENCENT_FACE_COMPARE_THRESHOLD:80}
         timeout-seconds: ${TENCENT_FACE_TIMEOUT_SECONDS:20}
+  safety:
+    semantic:
+      provider: ${SAFETY_SEMANTIC_PROVIDER:dashscope}
+      api-key: ${DASHSCOPE_API_KEY:}
+      endpoint: ${DASHSCOPE_ENDPOINT:https://ws-2oz82zxkm7hqgi00.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions}
+      model: ${DASHSCOPE_MODEL:qwen3.7-plus}
+      timeout-seconds: ${DASHSCOPE_TIMEOUT_SECONDS:20}
+      enable-thinking: ${DASHSCOPE_ENABLE_THINKING:false}

@@ -2,15 +2,26 @@ package com.edu.controller;
 
 import com.edu.common.PageResult;
 import com.edu.common.Result;
+import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.dto.rag.RagChatRequest;
 import com.edu.pojo.dto.rag.RagChatSessionCreateRequest;
 import com.edu.pojo.dto.rag.RagChatSessionRenameRequest;
 import com.edu.pojo.dto.rag.RagSpeechTextRequest;
+import com.edu.pojo.dto.safety.SafetyGatewayRequest;
+import com.edu.pojo.dto.safety.SafetyGatewayResponse;
+import com.edu.pojo.enums.safety.SafetyDecision;
+import com.edu.pojo.enums.safety.SafetyGradeLevel;
+import com.edu.pojo.enums.safety.SafetyScene;
+import com.edu.pojo.enums.safety.SafetySourceModule;
+import com.edu.pojo.enums.safety.SafetyUserRole;
 import com.edu.pojo.vo.rag.RagChatMessageVO;
 import com.edu.pojo.vo.rag.RagChatSessionVO;
 import com.edu.pojo.vo.rag.RagKnowledgeBaseVO;
 import com.edu.service.RagFileAccessService;
 import com.edu.service.RagService;
+import com.edu.service.safety.SafetyGatewaySupport;
+import com.edu.service.safety.SafetyGatewayService;
+import com.edu.util.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,6 +44,8 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -42,6 +55,8 @@ import java.util.List;
 public class RagChatController {
     private final RagService ragService;
     private final RagFileAccessService ragFileAccessService;
+    private final SafetyGatewayService safetyGatewayService;
+    private final SafetyGatewaySupport safetyGatewaySupport;
 
     @Operation(summary = "分页查询RAG聊天会话")
     @GetMapping("/chat/session/page")
@@ -93,18 +108,91 @@ public class RagChatController {
     @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Flux<ServerSentEvent<RagChatMessageVO>> chat(@Valid @ModelAttribute RagChatRequest request) {
+        SafetyGatewayResponse safetyResponse = safetyGatewayService.evaluate(SafetyGatewayRequest.builder()
+                .sourceModule(SafetySourceModule.EDUCATION_RAG)
+                .scene(resolveScene())
+                .userRole(resolveUserRole())
+                .gradeLevel(resolveGradeLevel())
+                .inputText(request.getMessage())
+                .recordLog(true)
+                .metadata(Map.of(
+                        "entryPoint", "rag-chat-controller",
+                        "route", "/api/rag/chat",
+                        "sessionId", String.valueOf(request.getSessionId())
+                ))
+                .build());
+        if (safetyResponse.getDecision() == SafetyDecision.BLOCK) {
+            return Flux.just(ServerSentEvent.builder(RagChatMessageVO.builder()
+                    .status("error")
+                    .sessionId(request.getSessionId())
+                    .messageId("safety-" + UUID.randomUUID())
+                    .role("assistant")
+                    .content(firstNonBlank(safetyResponse.getReason(), "RAG请求被安全层拦截"))
+                    .build()).build());
+        }
         return ragService.chat(request);
     }
 
     @Operation(summary = "处理朗读文本")
     @PostMapping("/chat/speech-text")
     public Result<String> prepareSpeechText(@Valid @RequestBody RagSpeechTextRequest request) {
-        return Result.setResult(HttpStatus.OK, "处理成功", ragService.prepareSpeechText(request.getContent()));
+        String safeContent = safetyGatewaySupport.enforceInputText(
+                SafetySourceModule.EDUCATION_RAG,
+                SafetyScene.AI_OUTPUT,
+                resolveGradeLevel(),
+                request.getContent(),
+                Map.of(
+                        "entryPoint", "rag-speech-text",
+                        "route", "/api/rag/chat/speech-text"
+                )
+        );
+        return Result.setResult(HttpStatus.OK, "处理成功", ragService.prepareSpeechText(safeContent));
     }
 
     @Operation(summary = "获取聊天图片")
     @GetMapping("/chat/image")
     public ResponseEntity<byte[]> getChatImage(@RequestParam String objectName) {
         return ragFileAccessService.getChatImage(objectName);
+    }
+
+    private SafetyUserRole resolveUserRole() {
+        UserInfoDTO user = SecurityUtil.getLoginUser();
+        if (user == null || user.getRoleCode() == null) {
+            return SafetyUserRole.STUDENT;
+        }
+        String roleCode = user.getRoleCode().trim().toUpperCase();
+        if ("ADMIN".equals(roleCode) || "SUPERADMIN".equals(roleCode)) {
+            return SafetyUserRole.ADMIN;
+        }
+        if ("TEACHER".equals(roleCode)) {
+            return SafetyUserRole.TEACHER;
+        }
+        return SafetyUserRole.STUDENT;
+    }
+
+    private SafetyGradeLevel resolveGradeLevel() {
+        SafetyUserRole role = resolveUserRole();
+        if (role == SafetyUserRole.TEACHER || role == SafetyUserRole.ADMIN) {
+            return SafetyGradeLevel.SENIOR;
+        }
+        return SafetyGradeLevel.JUNIOR;
+    }
+
+    private SafetyScene resolveScene() {
+        SafetyUserRole role = resolveUserRole();
+        if (role == SafetyUserRole.TEACHER || role == SafetyUserRole.ADMIN) {
+            return SafetyScene.TEACHER_COURSE;
+        }
+        return SafetyScene.STUDENT_AI;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first.trim();
+        }
+        if (second != null && !second.isBlank()) {
+            return second.trim();
+        }
+        return null;
     }
 }
