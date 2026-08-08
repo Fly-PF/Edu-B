@@ -18,6 +18,9 @@ public class GradingGenerateResponse {
     private List<String> strengths;
     private List<String> deductions;
     private List<String> suggestions;
+    private String referenceAnswer;
     private String revisedAnswer;
     private BigDecimal confidence;
+    private String provider;
+    private String model;
 }

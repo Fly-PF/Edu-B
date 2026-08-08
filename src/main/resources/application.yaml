@@ -37,3 +37,12 @@ spring:
 logging:
   level:
     org.springframework.security: DEBUG
+edu:
+  ai:
+    provider: ${EDU_AI_PROVIDER:mock}
+    base-url: ${EDU_AI_BASE_URL:}
+    api-key: ${EDU_AI_API_KEY:}
+    model: ${EDU_AI_MODEL:}
+    grading-model: ${EDU_AI_GRADING_MODEL:${EDU_AI_MODEL:}}
+    lesson-model: ${EDU_AI_LESSON_MODEL:${EDU_AI_MODEL:}}
+    grading-timeout-ms: ${EDU_AI_GRADING_TIMEOUT_MS:30000}

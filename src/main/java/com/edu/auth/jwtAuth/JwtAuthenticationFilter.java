@@ -76,7 +76,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        log.info("authorizationHeader: {}", authorizationHeader);
+        log.info("authorizationHeader present: true");
 
         Claims claims;
         try {

@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 @Component
-@ConditionalOnProperty(name = "edu.ai.provider", havingValue = "mock", matchIfMissing = true)
+@ConditionalOnProperty(name = "edu.ai.provider", havingValue = "mock")
 public class MockAiModelClient implements AiModelClient {
     @Override
     public LessonPlanGenerateResponse generateLessonPlan(LessonPlanGenerateRequest request) {
@@ -155,8 +155,11 @@ public class MockAiModelClient implements AiModelClient {
                 .strengths(strengths)
                 .deductions(deductions)
                 .suggestions(suggestions)
+                .referenceAnswer(referenceAnswer)
                 .revisedAnswer(buildRevisedAnswer(referenceAnswer))
                 .confidence(BigDecimal.valueOf(confidence).setScale(2, RoundingMode.HALF_UP))
+                .provider("mock")
+                .model("rule-based-mock")
                 .build();
     }
 
