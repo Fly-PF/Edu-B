@@ -110,6 +110,38 @@ public class LearningAnalysisSchemaInitializer {
                     INDEX idx_learning_recommendation_batch (batch_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI课程推荐结果'
                 """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS edu_learning_wrong_book (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    student_id BIGINT NOT NULL,
+                    name VARCHAR(40) NOT NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_wrong_book_student_name (student_id, name),
+                    INDEX idx_wrong_book_student (student_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生自定义错题本'
+                """);
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS edu_learning_wrong_book_item (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    book_id BIGINT NOT NULL,
+                    student_id BIGINT NOT NULL,
+                    practice_id BIGINT NOT NULL,
+                    question_id BIGINT NOT NULL,
+                    practice_title VARCHAR(255) NULL,
+                    course_name VARCHAR(255) NULL,
+                    question_content TEXT NOT NULL,
+                    question_score INT NULL,
+                    awarded_score INT NULL,
+                    reference_answer TEXT NULL,
+                    explanation TEXT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_wrong_book_question (book_id, practice_id, question_id),
+                    INDEX idx_wrong_book_item_student (student_id),
+                    INDEX idx_wrong_book_item_book (book_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='错题本题目快照'
+                """);
         log.info("Learning-growth schema is ready");
     }
 }

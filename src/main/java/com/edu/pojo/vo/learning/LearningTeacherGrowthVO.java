@@ -23,6 +23,7 @@ public class LearningTeacherGrowthVO {
     private LearningClassTrendVO classTrend;
     private List<LearningStudentTypeProfileVO> studentProfiles;
     private List<LearningStudentAbilityVO> studentAbilities;
+    private List<LearningQuestionAccuracyVO> questionAccuracy;
     private List<LearningRiskAlertVO> riskAlerts;
     private List<LearningGrowthCaseVO> cases;
 

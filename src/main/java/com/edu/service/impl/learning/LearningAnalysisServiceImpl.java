@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.edu.exception.BaseException;
 import com.edu.learninganalysis.CourseAssistantGateway;
 import com.edu.learninganalysis.LearningRiskModel;
+import com.edu.mapper.LearningPracticeMapper;
+import com.edu.mapper.LearningQuestionMapper;
+import com.edu.mapper.LearningSubmissionMapper;
 import com.edu.mapper.learning.LearningAiTraceMapper;
 import com.edu.mapper.learning.LearningCaseMapper;
 import com.edu.mapper.learning.LearningEvidenceMapper;
@@ -21,6 +24,9 @@ import com.edu.pojo.po.EduClassStudentPO;
 import com.edu.pojo.po.EduCourseClassPO;
 import com.edu.pojo.po.EduCoursePO;
 import com.edu.pojo.po.EduStudyRecordPO;
+import com.edu.pojo.po.LearningPracticePO;
+import com.edu.pojo.po.LearningQuestionPO;
+import com.edu.pojo.po.LearningSubmissionPO;
 import com.edu.pojo.po.SysUserPO;
 import com.edu.pojo.po.learning.LearningAiTracePO;
 import com.edu.pojo.po.learning.LearningCasePO;
@@ -33,6 +39,8 @@ import com.edu.pojo.vo.learning.LearningAbilityProfileVO;
 import com.edu.pojo.vo.learning.LearningAssistantReplyVO;
 import com.edu.pojo.vo.learning.LearningClassTrendVO;
 import com.edu.pojo.vo.learning.LearningGrowthCaseVO;
+import com.edu.pojo.vo.learning.LearningPracticeEvidenceVO;
+import com.edu.pojo.vo.learning.LearningQuestionAccuracyVO;
 import com.edu.pojo.vo.learning.LearningRiskAlertVO;
 import com.edu.pojo.vo.learning.LearningStudentAbilityVO;
 import com.edu.pojo.vo.learning.LearningStudentGrowthVO;
@@ -41,6 +49,8 @@ import com.edu.pojo.vo.learning.LearningStudentTypeProfileVO;
 import com.edu.pojo.vo.learning.LearningTeacherGrowthVO;
 import com.edu.pojo.vo.learning.LearningTeacherOverviewVO;
 import com.edu.pojo.vo.course.ChapterResourceProgressVO;
+import com.edu.pojo.vo.practice.PracticeListItemVO;
+import com.edu.pojo.vo.practice.StudentPracticeDetailVO;
 import com.edu.repository.EduChapterRepository;
 import com.edu.repository.EduClassRepository;
 import com.edu.repository.EduClassStudentRepository;
@@ -48,6 +58,7 @@ import com.edu.repository.EduCourseClassRepository;
 import com.edu.repository.EduCourseRepository;
 import com.edu.repository.EduStudyRecordRepository;
 import com.edu.repository.SysUserRepository;
+import com.edu.service.LearningPracticeService;
 import com.edu.service.learning.LearningAnalysisService;
 import com.edu.service.CourseResourceProgressService;
 import com.edu.util.SecurityUtil;
@@ -74,8 +85,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.HashSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * A closed loop for learning support: observable behaviour -> a teacher-owned
@@ -112,6 +125,10 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
     private final LearningRecommendationMapper recommendationMapper;
     private final LearningEvidenceMapper evidenceMapper;
     private final LearningAiTraceMapper traceMapper;
+    private final LearningPracticeMapper practiceMapper;
+    private final LearningQuestionMapper questionMapper;
+    private final LearningSubmissionMapper submissionMapper;
+    private final LearningPracticeService learningPracticeService;
     private final CourseAssistantGateway courseAssistantGateway;
     private final ObjectMapper objectMapper;
     private final CourseResourceProgressService resourceProgressService;
@@ -132,7 +149,12 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         int effective = (int) caseViews.stream().filter(item -> CASE_EFFECTIVE.equals(item.getStatus())).count();
         List<CourseSnapshot> allSnapshots = analysis.snapshotsByStudent().values().stream()
                 .flatMap(Collection::stream).toList();
-        List<LearningStudentAbilityVO> studentAbilities = buildStudentAbilities(analysis);
+        Map<Long, LearningPracticeEvidenceVO> practiceEvidenceByStudent =
+                buildPracticeEvidenceByStudent(analysis.snapshotsByStudent().keySet());
+        LearningPracticeEvidenceVO classPracticeEvidence = mergePracticeEvidence(practiceEvidenceByStudent.values());
+        List<LearningStudentAbilityVO> studentAbilities = buildStudentAbilities(analysis, practiceEvidenceByStudent);
+        List<LearningQuestionAccuracyVO> questionAccuracy = buildQuestionAccuracy(
+                clazz, analysis.snapshotsByStudent().keySet());
         List<LearningRiskAlertVO> riskAlerts = analysis.risks().stream()
                 .filter(item -> !"LOW".equals(item.getRiskLevel()))
                 .map(this::toRiskAlert).toList();
@@ -153,10 +175,11 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                         .build())
                 .risks(analysis.risks())
                 .classProfile(analysis.classProfile())
-                .classAbilityProfile(buildAbilityProfile(allSnapshots))
+                .classAbilityProfile(buildAbilityProfile(allSnapshots, classPracticeEvidence))
                 .classTrend(buildClassTrend(analysis.students()))
                 .studentProfiles(analysis.studentProfiles())
                 .studentAbilities(studentAbilities)
+                .questionAccuracy(questionAccuracy)
                 .riskAlerts(riskAlerts)
                 .cases(caseViews)
                 .build();
@@ -433,6 +456,7 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 context.assignment(), context.chapters(), studyRecordRepository.selectRecordsByStudentId(student.getUserId()).stream()
                         .filter(record -> Objects.equals(record.getCourseId(), context.course().getId())).toList()
         )).toList();
+        LearningPracticeEvidenceVO practiceEvidence = buildPracticeEvidence();
         return LearningStudentGrowthVO.builder()
                 .modelName("能力画像和风险预警来自真实学习记录；大模型只基于这些已知证据提供建议")
                 .summary(LearningStudentGrowthVO.Summary.builder()
@@ -444,7 +468,8 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                         .build())
                 .courses(courses)
                 .learningProfile(profile)
-                .abilityProfile(buildAbilityProfile(snapshots))
+                .abilityProfile(buildAbilityProfile(snapshots, practiceEvidence))
+                .practiceEvidence(practiceEvidence)
                 .riskAlerts(courses.stream().filter(item -> !"LOW".equals(item.getRiskLevel())).map(this::toRiskAlert).toList())
                 .recommendations(recommendations)
                 .priorityCase(priority)
@@ -593,10 +618,9 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 .studyMinutes(snapshot.studyMinutes())
                 .lastStudyTime(formatDateTime(snapshot.lastStudyTime()))
                 .idleDays(snapshot.idleDays())
-                .deadline(formatDateTime(snapshot.assignment().getDeadline()))
-                .deadlineDays(daysUntil(snapshot.assignment().getDeadline()))
                 .riskScore(risk.score())
                 .riskLevel(risk.level())
+                .deadline(formatDateTime(snapshot.assignment() == null ? null : snapshot.assignment().getDeadline()))
                 .estimatedDays(risk.estimatedDays())
                 .nextChapter(snapshot.nextChapter())
                 .recommendation(risk.recommendation())
@@ -618,13 +642,307 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 .difficulty(defaultNumber(context.course().getDifficulty()))
                 .progress(snapshot.progress()).totalChapters(snapshot.chapters().size()).finishedChapters(snapshot.finishedChapters())
                 .studyMinutes(snapshot.studyMinutes()).lastStudyTime(formatDateTime(snapshot.lastStudyTime()))
-                .idleDays(snapshot.idleDays()).deadline(formatDateTime(context.assignment().getDeadline()))
-                .deadlineDays(daysUntil(context.assignment().getDeadline())).riskScore(risk.score()).riskLevel(risk.level())
+                .idleDays(snapshot.idleDays()).riskScore(risk.score()).riskLevel(risk.level())
+                .deadline(formatDateTime(snapshot.assignment() == null ? null : snapshot.assignment().getDeadline()))
                 .estimatedDays(risk.estimatedDays()).nextChapter(snapshot.nextChapter()).recommendation(risk.recommendation())
                 .factors(toRiskFactors(risk.factors())).build();
     }
 
+    private LearningPracticeEvidenceVO buildPracticeEvidence() {
+        List<PracticeListItemVO> practices = learningPracticeService.listStudentPractices();
+        List<PracticeListItemVO> reviewed = practices.stream()
+                .filter(item -> "REVIEWED".equals(item.getStatus()))
+                .toList();
+        List<StudentPracticeDetailVO> details = reviewed.stream()
+                .map(item -> learningPracticeService.getStudentPractice(item.getId()))
+                .toList();
+        int earnedScore = reviewed.stream().mapToInt(item -> item.getScore() == null ? 0 : item.getScore()).sum();
+        int possibleScore = reviewed.stream().mapToInt(item -> item.getTotalScore() == null ? 0 : item.getTotalScore()).sum();
+        List<LearningPracticeEvidenceVO.ScoreItem> scores = reviewed.stream()
+                .map(item -> LearningPracticeEvidenceVO.ScoreItem.builder()
+                        .practiceId(item.getId())
+                        .title(item.getTitle())
+                        .courseName(item.getCourseName())
+                        .score(item.getScore())
+                        .totalScore(item.getTotalScore())
+                        .percentage(item.getTotalScore() == null || item.getTotalScore() <= 0 || item.getScore() == null
+                                ? 0 : (int) Math.round(item.getScore() * 100.0 / item.getTotalScore()))
+                        .build())
+                .toList();
+        List<LearningPracticeEvidenceVO.WrongQuestion> wrongQuestions = details.stream()
+                .flatMap(detail -> IntStream.range(0, detail.getQuestions() == null ? 0 : detail.getQuestions().size())
+                        .mapToObj(index -> Map.entry(detail, detail.getQuestions().get(index))))
+                .filter(entry -> entry.getValue().getAwardedScore() != null
+                        && entry.getValue().getScore() != null
+                        && entry.getValue().getAwardedScore() < entry.getValue().getScore())
+                .map(entry -> {
+                    StudentPracticeDetailVO detail = entry.getKey();
+                    StudentPracticeDetailVO.Question question = entry.getValue();
+                    return LearningPracticeEvidenceVO.WrongQuestion.builder()
+                            .practiceId(detail.getId())
+                            .practiceTitle(detail.getTitle())
+                            .courseName(detail.getCourseName())
+                            .questionId(question.getId())
+                            .content(question.getContent())
+                            .score(question.getScore())
+                            .awardedScore(question.getAwardedScore())
+                            .referenceAnswer(question.getReferenceAnswer())
+                            .explanation(question.getExplanation())
+                            .build();
+                })
+                .toList();
+        return LearningPracticeEvidenceVO.builder()
+                .totalPractices(practices.size())
+                .reviewedPractices(reviewed.size())
+                .pendingPractices((int) practices.stream().filter(item -> "SUBMITTED".equals(item.getStatus())).count())
+                .earnedScore(earnedScore)
+                .possibleScore(possibleScore)
+                .averageScore(possibleScore <= 0 ? 0 : (int) Math.round(earnedScore * 100.0 / possibleScore))
+                .wrongQuestionCount(wrongQuestions.size())
+                .scores(scores)
+                .wrongQuestions(wrongQuestions)
+                .build();
+    }
+
+    private Map<Long, LearningPracticeEvidenceVO> buildPracticeEvidenceByStudent(Collection<Long> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) return Map.of();
+
+        Set<Long> ids = new HashSet<>(studentIds);
+        List<LearningPracticePO> practices = practiceMapper.selectList(
+                new LambdaQueryWrapper<LearningPracticePO>()
+                        .eq(LearningPracticePO::getStatus, 1));
+        if (practices.isEmpty()) return Map.of();
+
+        Map<Long, LearningPracticePO> practiceById = practices.stream()
+                .collect(Collectors.toMap(LearningPracticePO::getId, Function.identity()));
+        Map<Long, List<LearningQuestionPO>> questionsByPractice = questionMapper.selectList(
+                        new LambdaQueryWrapper<LearningQuestionPO>()
+                                .in(LearningQuestionPO::getPracticeId, practiceById.keySet()))
+                .stream()
+                .collect(Collectors.groupingBy(LearningQuestionPO::getPracticeId));
+        Map<Long, List<LearningSubmissionPO>> submissionsByStudent = submissionMapper.selectList(
+                        new LambdaQueryWrapper<LearningSubmissionPO>()
+                                .in(LearningSubmissionPO::getStudentId, ids)
+                                .in(LearningSubmissionPO::getPracticeId, practiceById.keySet())
+                                .in(LearningSubmissionPO::getStatus, List.of("SUBMITTED", "REVIEWED")))
+                .stream()
+                .collect(Collectors.groupingBy(LearningSubmissionPO::getStudentId));
+
+        Map<Long, LearningPracticeEvidenceVO> result = new LinkedHashMap<>();
+        for (Long studentId : ids) {
+            List<LearningSubmissionPO> submissions = submissionsByStudent.getOrDefault(studentId, List.of());
+            List<LearningSubmissionPO> reviewed = submissions.stream()
+                    .filter(item -> "REVIEWED".equals(item.getStatus()))
+                    .toList();
+            int earnedScore = reviewed.stream().mapToInt(this::submissionScore).sum();
+            int possibleScore = reviewed.stream()
+                    .map(item -> practiceById.get(item.getPracticeId()))
+                    .filter(Objects::nonNull)
+                    .mapToInt(item -> item.getTotalScore() == null ? 0 : item.getTotalScore())
+                    .sum();
+            int wrongQuestionCount = reviewed.stream()
+                    .mapToInt(item -> countWrongQuestions(item,
+                            questionsByPractice.getOrDefault(item.getPracticeId(), List.of())))
+                    .sum();
+            result.put(studentId, LearningPracticeEvidenceVO.builder()
+                    .totalPractices(practices.size())
+                    .reviewedPractices(reviewed.size())
+                    .pendingPractices((int) submissions.stream()
+                            .filter(item -> "SUBMITTED".equals(item.getStatus())).count())
+                    .earnedScore(earnedScore)
+                    .possibleScore(possibleScore)
+                    .averageScore(possibleScore <= 0 ? 0
+                            : (int) Math.round(earnedScore * 100.0 / possibleScore))
+                    .wrongQuestionCount(wrongQuestionCount)
+                    .scores(List.of())
+                    .wrongQuestions(List.of())
+                    .build());
+        }
+        return result;
+    }
+
+    private LearningPracticeEvidenceVO mergePracticeEvidence(Collection<LearningPracticeEvidenceVO> evidenceItems) {
+        if (evidenceItems == null || evidenceItems.isEmpty()) return null;
+        int reviewed = evidenceItems.stream().mapToInt(item -> defaultNumber(item.getReviewedPractices())).sum();
+        if (reviewed == 0) return null;
+        int earned = evidenceItems.stream().mapToInt(item -> defaultNumber(item.getEarnedScore())).sum();
+        int possible = evidenceItems.stream().mapToInt(item -> defaultNumber(item.getPossibleScore())).sum();
+        return LearningPracticeEvidenceVO.builder()
+                .totalPractices(evidenceItems.stream().mapToInt(item -> defaultNumber(item.getTotalPractices())).max().orElse(0))
+                .reviewedPractices(reviewed)
+                .pendingPractices(evidenceItems.stream().mapToInt(item -> defaultNumber(item.getPendingPractices())).sum())
+                .earnedScore(earned)
+                .possibleScore(possible)
+                .averageScore(possible <= 0 ? 0 : (int) Math.round(earned * 100.0 / possible))
+                .wrongQuestionCount(evidenceItems.stream().mapToInt(item -> defaultNumber(item.getWrongQuestionCount())).sum())
+                .scores(List.of())
+                .wrongQuestions(List.of())
+                .build();
+    }
+
+    private int submissionScore(LearningSubmissionPO submission) {
+        Integer score = submission.getTeacherScore() == null
+                ? submission.getAutoScore()
+                : submission.getTeacherScore();
+        return score == null ? 0 : score;
+    }
+
+    private int countWrongQuestions(LearningSubmissionPO submission, List<LearningQuestionPO> questions) {
+        if (submission == null || questions == null || questions.isEmpty()) return 0;
+        Map<String, String> answers = readAnswerMap(submission.getAnswerJson());
+        Map<String, Integer> reviews = readReviewScoreMap(submission.getQuestionReviewJson());
+        return (int) questions.stream().filter(question -> {
+            String answer = answers.get(String.valueOf(question.getId()));
+            if ("SINGLE".equals(question.getQuestionType())) {
+                return !normalizeChoice(question.getReferenceAnswer()).equals(normalizeChoice(answer));
+            }
+            if ("SHORT".equals(question.getQuestionType())) {
+                int awarded = reviews.getOrDefault(String.valueOf(question.getId()), 0);
+                int maximum = question.getQuestionScore() == null ? 0 : question.getQuestionScore();
+                return awarded < maximum;
+            }
+            return false;
+        }).count();
+    }
+
+    private List<LearningQuestionAccuracyVO> buildQuestionAccuracy(
+            EduClassPO clazz,
+            Collection<Long> studentIds
+    ) {
+        Map<Long, EduCoursePO> courseById = courseClassRepository.selectByClassId(clazz.getId()).stream()
+                .map(item -> courseRepository.selectCourseById(item.getCourseId()))
+                .filter(this::isActiveCourse)
+                .collect(Collectors.toMap(
+                        EduCoursePO::getId,
+                        Function.identity(),
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
+        if (courseById.isEmpty()) return List.of();
+
+        List<LearningPracticePO> practices = practiceMapper.selectList(
+                new LambdaQueryWrapper<LearningPracticePO>()
+                        .in(LearningPracticePO::getCourseId, courseById.keySet())
+                        .eq(LearningPracticePO::getStatus, 1)
+                        .orderByAsc(LearningPracticePO::getCourseId)
+                        .orderByAsc(LearningPracticePO::getId));
+        if (practices.isEmpty()) return List.of();
+
+        Set<Long> practiceIds = practices.stream().map(LearningPracticePO::getId).collect(Collectors.toSet());
+        Map<Long, List<LearningQuestionPO>> questionsByPractice = questionMapper.selectList(
+                        new LambdaQueryWrapper<LearningQuestionPO>()
+                                .in(LearningQuestionPO::getPracticeId, practiceIds)
+                                .orderByAsc(LearningQuestionPO::getPracticeId)
+                                .orderByAsc(LearningQuestionPO::getSortOrder))
+                .stream()
+                .collect(Collectors.groupingBy(
+                        LearningQuestionPO::getPracticeId,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        Map<Long, List<LearningSubmissionPO>> submissionsByPractice = studentIds == null || studentIds.isEmpty()
+                ? Map.of()
+                : submissionMapper.selectList(new LambdaQueryWrapper<LearningSubmissionPO>()
+                        .in(LearningSubmissionPO::getStudentId, new HashSet<>(studentIds))
+                        .in(LearningSubmissionPO::getPracticeId, practiceIds)
+                        .eq(LearningSubmissionPO::getStatus, "REVIEWED"))
+                .stream()
+                .collect(Collectors.groupingBy(LearningSubmissionPO::getPracticeId));
+
+        return practices.stream().map(practice -> {
+            List<LearningSubmissionPO> submissions = submissionsByPractice.getOrDefault(practice.getId(), List.of());
+            List<ReviewedSubmission> reviewedAnswers = submissions.stream()
+                    .map(item -> new ReviewedSubmission(
+                            readAnswerMap(item.getAnswerJson()),
+                            readReviewScoreMap(item.getQuestionReviewJson())))
+                    .toList();
+            List<LearningQuestionAccuracyVO.Question> questions = questionsByPractice
+                    .getOrDefault(practice.getId(), List.of()).stream()
+                    .map(question -> {
+                        int attempts = reviewedAnswers.size();
+                        int correct = (int) reviewedAnswers.stream()
+                                .filter(item -> isQuestionCorrect(item, question))
+                                .count();
+                        return LearningQuestionAccuracyVO.Question.builder()
+                                .questionId(question.getId())
+                                .questionType(question.getQuestionType())
+                                .content(question.getQuestionContent())
+                                .score(defaultNumber(question.getQuestionScore()))
+                                .attemptCount(attempts)
+                                .correctCount(correct)
+                                .accuracy(attempts == 0 ? 0 : (int) Math.round(correct * 100.0 / attempts))
+                                .build();
+                    })
+                    .toList();
+            EduCoursePO course = courseById.get(practice.getCourseId());
+            return LearningQuestionAccuracyVO.builder()
+                    .practiceId(practice.getId())
+                    .practiceTitle(practice.getPracticeTitle())
+                    .courseId(practice.getCourseId())
+                    .courseName(course == null ? "未知课程" : course.getCourseName())
+                    .reviewedSubmissionCount(submissions.size())
+                    .questions(questions)
+                    .build();
+        }).toList();
+    }
+
+    private boolean isQuestionCorrect(ReviewedSubmission submission, LearningQuestionPO question) {
+        String questionId = String.valueOf(question.getId());
+        String answer = submission.answers().get(questionId);
+        if ("SINGLE".equals(question.getQuestionType())) {
+            return StringUtils.hasText(question.getReferenceAnswer())
+                    && normalizeChoice(question.getReferenceAnswer()).equals(normalizeChoice(answer));
+        }
+        Integer awarded = submission.reviewScores().get(questionId);
+        int maximum = defaultNumber(question.getQuestionScore());
+        if (awarded != null && maximum > 0) {
+            return awarded >= maximum;
+        }
+        return StringUtils.hasText(question.getReferenceAnswer())
+                && normalizeChoice(question.getReferenceAnswer()).equals(normalizeChoice(answer));
+    }
+
+    private Map<String, String> readAnswerMap(String json) {
+        if (!StringUtils.hasText(json)) return Map.of();
+        try {
+            return objectMapper.readValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+        } catch (Exception ignored) {
+            return Map.of();
+        }
+    }
+
+    private Map<String, Integer> readReviewScoreMap(String json) {
+        if (!StringUtils.hasText(json)) return Map.of();
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            Map<String, Integer> result = new HashMap<>();
+            root.fields().forEachRemaining(entry -> result.put(entry.getKey(), entry.getValue().path("score").asInt(0)));
+            return result;
+        } catch (Exception ignored) {
+            return Map.of();
+        }
+    }
+
+    private String normalizeChoice(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase();
+        if (!normalized.matches("\\d+")) return normalized;
+        try {
+            int choiceIndex = Integer.parseInt(normalized);
+            return choiceIndex >= 1 && choiceIndex <= 26
+                    ? String.valueOf((char) ('A' + choiceIndex - 1))
+                    : normalized;
+        } catch (NumberFormatException ignored) {
+            return normalized;
+        }
+    }
+
     private LearningAbilityProfileVO buildAbilityProfile(List<CourseSnapshot> snapshots) {
+        return buildAbilityProfile(snapshots, null);
+    }
+
+    private LearningAbilityProfileVO buildAbilityProfile(
+            List<CourseSnapshot> snapshots,
+            LearningPracticeEvidenceVO practiceEvidence
+    ) {
         List<CourseSnapshot> studied = snapshots.stream()
                 .filter(item -> item.studyMinutes() > 0 || item.progress() > 0).toList();
         int courseCount = studied.size();
@@ -638,10 +956,21 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         int activeRatio = courseCount == 0 ? 0 : (int) Math.round(activeCourses * 100.0 / courseCount);
         int continuity = courseCount == 0 ? 0 : clampScore((int) Math.round(activeRatio * 0.65
                 + Math.max(0, 100 - averageIdleDays * 8) * 0.35));
-        int overall = courseCount == 0 ? 0 : clampScore((int) Math.round(progress * 0.50 + investment * 0.25 + continuity * 0.25));
+        int baseOverall = courseCount == 0 ? 0 : clampScore((int) Math.round(progress * 0.50 + investment * 0.25 + continuity * 0.25));
+        boolean hasPracticeEvidence = practiceEvidence != null
+                && practiceEvidence.getReviewedPractices() != null
+                && practiceEvidence.getReviewedPractices() > 0
+                && practiceEvidence.getAverageScore() != null;
+        int practiceScore = hasPracticeEvidence ? clampScore(practiceEvidence.getAverageScore()) : 0;
+        int overall = hasPracticeEvidence
+                ? clampScore((int) Math.round(baseOverall * 0.80 + practiceScore * 0.20))
+                : baseOverall;
         int confidence = courseCount == 0 ? 0 : Math.min(95, 30 + courseCount * 12 + Math.min(29, totalMinutes / 8));
+        if (hasPracticeEvidence) {
+            confidence = Math.min(100, confidence + 5);
+        }
 
-        List<LearningAbilityProfileVO.Dimension> dimensions = List.of(
+        List<LearningAbilityProfileVO.Dimension> dimensions = new ArrayList<>(List.of(
                 LearningAbilityProfileVO.Dimension.builder().key("progress").label("课程推进")
                         .score(progress).evidence(courseCount == 0 ? "尚无章节学习记录" : "已学习 " + courseCount + " 门课程，平均章节完成度 " + progress + "%")
                         .interpretation(scoreMeaning(progress, "课程推进较顺畅", "需要补齐未完成章节")).build(),
@@ -651,7 +980,15 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                 LearningAbilityProfileVO.Dimension.builder().key("continuity").label("学习连续性")
                         .score(continuity).evidence("近 7 天活跃课程 " + activeCourses + "/" + courseCount + " 门；平均中断 " + averageIdleDays + " 天")
                         .interpretation(scoreMeaning(continuity, "学习节奏较稳定", "需要恢复固定学习节奏")).build()
-        );
+        ));
+        if (hasPracticeEvidence) {
+            dimensions.add(LearningAbilityProfileVO.Dimension.builder().key("practice")
+                    .label("练习掌握")
+                    .score(practiceScore)
+                    .evidence("已反馈 " + practiceEvidence.getReviewedPractices() + " 项练习，平均得分 " + practiceScore + "%")
+                    .interpretation(scoreMeaning(practiceScore, "练习掌握较稳", "优先复盘错题并再次练习"))
+                    .build());
+        }
         LearningAbilityProfileVO.Dimension dominantDimension = dimensions.stream()
                 .max(Comparator.comparing(LearningAbilityProfileVO.Dimension::getScore)).orElse(dimensions.getFirst());
         LearningAbilityProfileVO.Dimension priorityDimension = dimensions.stream()
@@ -669,25 +1006,36 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         if (progress < 60) actions.add("优先完成当前课程的下一未完成章节，再查看课程推进变化。");
         if (investment < 60) actions.add("本周安排一次不少于 30 分钟的完整学习，补足有效学习时长。");
         if (continuity < 60) actions.add("在本周安排 2 次学习，减少课程学习中断。");
+        if (hasPracticeEvidence && practiceScore < 60) actions.add("先复盘错题集，再完成一套练习巩固薄弱知识点。");
         if (actions.isEmpty()) actions.add("保持当前学习节奏，完成下一章节后再查看画像变化。");
         String summary = courseCount == 0 ? "暂无足够学习记录，完成课程章节后会形成能力画像。"
-                : "画像基于 " + courseCount + " 个课程学习样本、" + totalMinutes + " 分钟真实时长计算，反映课程推进、学习投入和学习连续性。";
+                : "画像基于 " + courseCount + " 个课程学习样本、" + totalMinutes + " 分钟真实时长"
+                + (hasPracticeEvidence ? "和 " + practiceEvidence.getReviewedPractices() + " 项已反馈练习" : "")
+                + "计算，反映课程推进、学习投入、学习连续性和练习掌握。";
         return LearningAbilityProfileVO.builder().overallScore(overall).level(abilityLevel(overall)).dataConfidence(confidence)
                 .summary(summary)
                 .pattern(pattern)
                 .balanceScore(balanceScore)
+                .practiceScore(hasPracticeEvidence ? practiceScore : null)
+                .practiceReviewedCount(hasPracticeEvidence ? practiceEvidence.getReviewedPractices() : 0)
+                .wrongQuestionCount(practiceEvidence == null || practiceEvidence.getWrongQuestionCount() == null
+                        ? 0 : practiceEvidence.getWrongQuestionCount())
                 .dominantDimensionKey(dominantDimension.getKey())
                 .priorityDimensionKey(priorityDimension.getKey())
                 .dimensions(dimensions).strengths(strengths).gaps(gaps).nextActions(actions).build();
     }
 
-    private List<LearningStudentAbilityVO> buildStudentAbilities(ClassAnalysis analysis) {
+    private List<LearningStudentAbilityVO> buildStudentAbilities(
+            ClassAnalysis analysis,
+            Map<Long, LearningPracticeEvidenceVO> practiceEvidenceByStudent
+    ) {
         return analysis.snapshotsByStudent().entrySet().stream().map(entry -> {
             Long studentId = entry.getKey();
             LearningTeacherOverviewVO.StudentRisk topRisk = analysis.risks().stream()
                     .filter(item -> Objects.equals(item.getStudentId(), studentId)).findFirst().orElse(null);
             SysUserPO student = analysis.users().get(studentId);
-            LearningAbilityProfileVO profile = buildAbilityProfile(entry.getValue());
+            LearningAbilityProfileVO profile = buildAbilityProfile(
+                    entry.getValue(), practiceEvidenceByStudent.get(studentId));
             StudentLearningState state = studentLearningState(profile, topRisk);
             return LearningStudentAbilityVO.builder().studentId(studentId)
                     .studentName(defaultString(student == null ? null : student.getRealName(), "未命名学生"))
@@ -1108,9 +1456,43 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
 
     private LearningRiskModel.LearningRiskResult assess(CourseSnapshot snapshot, int average) {
         return riskModel.assess(new LearningRiskModel.LearningRiskInput(
-                snapshot.progress(), average, snapshot.idleDays(), daysUntil(snapshot.assignment().getDeadline()),
+                snapshot.progress(), average, snapshot.idleDays(), reviewedPracticeAccuracy(snapshot.studentId(), snapshot.course().getId()),
                 snapshot.chapters().size(), snapshot.finishedChapters(), snapshot.studyMinutes()
         ));
+    }
+
+    private Integer reviewedPracticeAccuracy(Long studentId, Long courseId) {
+        List<LearningPracticePO> practices = practiceMapper.selectList(
+                new LambdaQueryWrapper<LearningPracticePO>()
+                        .eq(LearningPracticePO::getCourseId, courseId)
+                        .eq(LearningPracticePO::getStatus, 1));
+        if (practices.isEmpty()) {
+            return null;
+        }
+
+        Map<Long, Integer> totalScoreByPractice = practices.stream().collect(Collectors.toMap(
+                LearningPracticePO::getId,
+                item -> Math.max(0, defaultNumber(item.getTotalScore()))));
+        List<LearningSubmissionPO> submissions = submissionMapper.selectList(
+                new LambdaQueryWrapper<LearningSubmissionPO>()
+                        .eq(LearningSubmissionPO::getStudentId, studentId)
+                        .in(LearningSubmissionPO::getPracticeId, totalScoreByPractice.keySet())
+                        .eq(LearningSubmissionPO::getStatus, "REVIEWED"));
+
+        int earned = 0;
+        int possible = 0;
+        for (LearningSubmissionPO submission : submissions) {
+            int totalScore = totalScoreByPractice.getOrDefault(submission.getPracticeId(), 0);
+            if (totalScore <= 0) {
+                continue;
+            }
+            Integer reviewedScore = submission.getTeacherScore() == null
+                    ? submission.getAutoScore()
+                    : submission.getTeacherScore();
+            earned += Math.max(0, Math.min(totalScore, defaultNumber(reviewedScore)));
+            possible += totalScore;
+        }
+        return possible == 0 ? null : (int) Math.round(earned * 100.0 / possible);
     }
 
     private LearningGrowthCaseVO toCaseView(LearningCasePO learningCase) {
@@ -1446,10 +1828,6 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
         return value == null ? null : (int) Math.max(0, ChronoUnit.DAYS.between(value.toLocalDate(), LocalDateTime.now().toLocalDate()));
     }
 
-    private Integer daysUntil(LocalDateTime value) {
-        return value == null ? null : (int) ChronoUnit.DAYS.between(LocalDateTime.now().toLocalDate(), value.toLocalDate());
-    }
-
     private String formatDateTime(LocalDateTime value) {
         return value == null ? null : DATE_TIME_FORMATTER.format(value);
     }
@@ -1503,6 +1881,9 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
     }
 
     private record EvidenceDraft(String result, String assessment, int confidence, String source, String modelName) {
+    }
+
+    private record ReviewedSubmission(Map<String, String> answers, Map<String, Integer> reviewScores) {
     }
 
     private record RecommendationCandidate(EduCoursePO course) {

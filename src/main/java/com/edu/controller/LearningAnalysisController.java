@@ -6,16 +6,21 @@ import com.edu.pojo.dto.learning.LearningAssistantRequest;
 import com.edu.pojo.dto.learning.LearningEvidenceSubmitRequest;
 import com.edu.pojo.dto.learning.LearningPlanDecisionRequest;
 import com.edu.pojo.dto.learning.LearningPlanReviewRequest;
+import com.edu.pojo.dto.learning.LearningWrongBookNameRequest;
+import com.edu.pojo.dto.learning.LearningWrongBookQuestionRequest;
 import com.edu.pojo.vo.learning.LearningGrowthCaseVO;
 import com.edu.pojo.vo.learning.LearningAssistantReplyVO;
 import com.edu.pojo.vo.learning.LearningStudentGrowthVO;
 import com.edu.pojo.vo.learning.LearningTeacherGrowthVO;
+import com.edu.pojo.vo.learning.LearningWrongBookVO;
 import com.edu.service.learning.LearningAnalysisService;
+import com.edu.service.learning.LearningWrongBookService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,12 +29,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/learning-analysis")
 @Tag(name = "AI学习诊断与成长闭环")
 public class LearningAnalysisController {
     private final LearningAnalysisService learningAnalysisService;
+    private final LearningWrongBookService learningWrongBookService;
 
     @Operation(summary = "教师查看AI学情干预中心")
     @GetMapping("/teacher/classes/{classId}/dashboard")
@@ -74,6 +82,56 @@ public class LearningAnalysisController {
     @GetMapping("/student/growth-overview")
     public Result<LearningStudentGrowthVO> getStudentGrowthOverview() {
         return Result.setResult(HttpStatus.OK, "查询成功", learningAnalysisService.getStudentGrowthOverview());
+    }
+
+    @Operation(summary = "学生查看自己的错题本")
+    @GetMapping("/student/wrong-books")
+    public Result<List<LearningWrongBookVO>> listWrongBooks() {
+        return Result.setResult(HttpStatus.OK, "查询成功", learningWrongBookService.listStudentBooks());
+    }
+
+    @Operation(summary = "学生新建错题本")
+    @PostMapping("/student/wrong-books")
+    public Result<LearningWrongBookVO> createWrongBook(
+            @Valid @RequestBody LearningWrongBookNameRequest request
+    ) {
+        return Result.setResult(HttpStatus.CREATED, "错题本已创建", learningWrongBookService.createBook(request));
+    }
+
+    @Operation(summary = "学生重命名错题本")
+    @PatchMapping("/student/wrong-books/{bookId}")
+    public Result<LearningWrongBookVO> renameWrongBook(
+            @PathVariable Long bookId,
+            @Valid @RequestBody LearningWrongBookNameRequest request
+    ) {
+        return Result.setResult(HttpStatus.OK, "错题本已重命名", learningWrongBookService.renameBook(bookId, request));
+    }
+
+    @Operation(summary = "学生删除错题本")
+    @DeleteMapping("/student/wrong-books/{bookId}")
+    public Result<Void> deleteWrongBook(@PathVariable Long bookId) {
+        learningWrongBookService.deleteBook(bookId);
+        return Result.setResult(HttpStatus.OK, "错题本已删除", null);
+    }
+
+    @Operation(summary = "学生将真实错题收入错题本")
+    @PostMapping("/student/wrong-books/{bookId}/questions")
+    public Result<LearningWrongBookVO> addWrongBookQuestion(
+            @PathVariable Long bookId,
+            @Valid @RequestBody LearningWrongBookQuestionRequest request
+    ) {
+        return Result.setResult(HttpStatus.CREATED, "错题已收入", learningWrongBookService.addQuestion(bookId, request));
+    }
+
+    @Operation(summary = "学生从错题本移除题目")
+    @DeleteMapping("/student/wrong-books/{bookId}/questions/{practiceId}/{questionId}")
+    public Result<Void> removeWrongBookQuestion(
+            @PathVariable Long bookId,
+            @PathVariable Long practiceId,
+            @PathVariable Long questionId
+    ) {
+        learningWrongBookService.removeQuestion(bookId, practiceId, questionId);
+        return Result.setResult(HttpStatus.OK, "错题已移除", null);
     }
 
     @Operation(summary = "基于学习画像刷新AI课程推荐")

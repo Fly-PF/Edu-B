@@ -17,6 +17,7 @@ public class LearningStudentGrowthVO {
     private List<LearningStudentOverviewVO.CourseLearning> courses;
     private LearningCourseProfileVO learningProfile;
     private LearningAbilityProfileVO abilityProfile;
+    private LearningPracticeEvidenceVO practiceEvidence;
     private List<LearningRiskAlertVO> riskAlerts;
     private List<LearningCourseRecommendationVO> recommendations;
     private LearningGrowthCaseVO priorityCase;

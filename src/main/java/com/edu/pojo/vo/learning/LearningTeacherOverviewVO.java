@@ -49,10 +49,9 @@ public class LearningTeacherOverviewVO {
         private Integer studyMinutes;
         private String lastStudyTime;
         private Integer idleDays;
-        private String deadline;
-        private Integer deadlineDays;
         private Integer riskScore;
         private String riskLevel;
+        private String deadline;
         private Integer estimatedDays;
         private String nextChapter;
         private String recommendation;
