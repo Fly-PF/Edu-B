@@ -14,7 +14,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/learning-practice.sql,classpath:db/course-knowledge-base.sql
+      schema-locations: classpath:db/learning-practice.sql,classpath:db/course-knowledge-base.sql,classpath:db/course-study-progress.sql,classpath:db/safety-record.sql
   servlet:
     multipart:
       max-file-size: 1GB
