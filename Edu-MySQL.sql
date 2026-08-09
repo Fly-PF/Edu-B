@@ -191,6 +191,25 @@ CREATE TABLE edu_resource
     INDEX idx_chapter_id (chapter_id)
 ) COMMENT '课程配套学习资源';
 
+DROP TABLE IF EXISTS edu_resource_study_record;
+CREATE TABLE edu_resource_study_record
+(
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    student_id      BIGINT   NOT NULL,
+    assignment_id   BIGINT   NOT NULL DEFAULT 0 COMMENT 'edu_course_class.id; 0 means non-class learning',
+    course_id       BIGINT   NOT NULL,
+    chapter_id      BIGINT   NOT NULL,
+    resource_id     BIGINT   NOT NULL,
+    progress        INT      NOT NULL DEFAULT 0,
+    study_duration  INT      NOT NULL DEFAULT 0,
+    finish_status   TINYINT  NOT NULL DEFAULT 0,
+    last_study_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    create_time     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_resource_assignment_student (student_id, assignment_id, resource_id),
+    INDEX idx_resource_study_course (course_id, assignment_id),
+    INDEX idx_resource_study_student (student_id, assignment_id)
+) COMMENT 'Student resource progress scoped to a course assignment';
+
 DROP TABLE IF EXISTS edu_study_record;
 CREATE TABLE edu_study_record
 (
@@ -590,6 +609,7 @@ CREATE TABLE rag_knowledge_base
     kb_cover    VARCHAR(255) NOT NULL COMMENT '封面图链接URL',
     description TEXT COMMENT '库说明',
     kb_type     TINYINT      NOT NULL COMMENT '1其他 2课程 3教材 4政策',
+    course_id   BIGINT       NOT NULL DEFAULT -1 COMMENT '知识库关联的课程id',
     is_public   TINYINT  DEFAULT 0 COMMENT '0私有 1平台公开',
     status      TINYINT  DEFAULT 1 COMMENT '0停用 1启用',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
