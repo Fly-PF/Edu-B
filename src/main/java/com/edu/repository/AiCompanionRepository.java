@@ -19,6 +19,10 @@ public interface AiCompanionRepository {
 
     List<AiCompanionMessagePO> selectMessagesBySessionId(Long sessionId);
 
+    int deleteMessagesBySessionId(Long sessionId);
+
+    int deleteSessionByIdAndStudentId(Long sessionId, Long studentId);
+
     int deleteMessagesByStudentId(Long studentId);
 
     int deleteSessionsByStudentId(Long studentId);

@@ -65,6 +65,19 @@ public class AiCompanionRepositoryImpl implements AiCompanionRepository {
     }
 
     @Override
+    public int deleteMessagesBySessionId(Long sessionId) {
+        return messageMapper.delete(new LambdaQueryWrapper<AiCompanionMessagePO>()
+                .eq(AiCompanionMessagePO::getSessionId, sessionId));
+    }
+
+    @Override
+    public int deleteSessionByIdAndStudentId(Long sessionId, Long studentId) {
+        return sessionMapper.delete(new LambdaQueryWrapper<AiCompanionSessionPO>()
+                .eq(AiCompanionSessionPO::getId, sessionId)
+                .eq(AiCompanionSessionPO::getStudentId, studentId));
+    }
+
+    @Override
     public int deleteMessagesByStudentId(Long studentId) {
         return messageMapper.delete(new LambdaQueryWrapper<AiCompanionMessagePO>()
                 .eq(AiCompanionMessagePO::getStudentId, studentId));

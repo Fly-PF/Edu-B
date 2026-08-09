@@ -19,5 +19,7 @@ public interface AiCompanionService {
 
     List<AiCompanionMessageVO> listMessages(Long sessionId);
 
+    void deleteConversation(Long sessionId);
+
     void clearConversations();
 }

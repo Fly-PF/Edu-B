@@ -58,6 +58,13 @@ public class StudentAiCompanionController {
         return Result.setResult(HttpStatus.OK, "查询成功", aiCompanionService.listMessages(sessionId));
     }
 
+    @Operation(summary = "删除当前学生的指定智能学伴对话")
+    @DeleteMapping("/sessions/{sessionId}")
+    public Result<Void> deleteConversation(@PathVariable Long sessionId) {
+        aiCompanionService.deleteConversation(sessionId);
+        return Result.setResult(HttpStatus.OK, "当前对话已删除", null);
+    }
+
     @Operation(summary = "清空当前学生的智能学伴对话")
     @DeleteMapping("/sessions")
     public Result<Void> clearConversations() {

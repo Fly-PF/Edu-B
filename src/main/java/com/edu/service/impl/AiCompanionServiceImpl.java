@@ -291,6 +291,15 @@ public class AiCompanionServiceImpl implements AiCompanionService {
 
     @Override
     @Transactional
+    public void deleteConversation(Long sessionId) {
+        UserInfoDTO student = requireStudent();
+        requireOwnedSession(sessionId, student.getUserId());
+        companionRepository.deleteMessagesBySessionId(sessionId);
+        companionRepository.deleteSessionByIdAndStudentId(sessionId, student.getUserId());
+    }
+
+    @Override
+    @Transactional
     public void clearConversations() {
         UserInfoDTO student = requireStudent();
         companionRepository.deleteMessagesByStudentId(student.getUserId());
