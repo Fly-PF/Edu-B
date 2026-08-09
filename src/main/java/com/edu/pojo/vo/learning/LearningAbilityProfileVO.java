@@ -19,6 +19,9 @@ public class LearningAbilityProfileVO {
     private String summary;
     private String pattern;
     private Integer balanceScore;
+    private Integer practiceScore;
+    private Integer practiceReviewedCount;
+    private Integer wrongQuestionCount;
     private String dominantDimensionKey;
     private String priorityDimensionKey;
     private List<Dimension> dimensions;
