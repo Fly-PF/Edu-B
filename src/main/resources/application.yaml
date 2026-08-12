@@ -24,50 +24,154 @@ spring:
   main:
     allow-circular-references: true
   datasource:
-    driver-class-name: ${edu.datasource.driver-class-name}
-    username: ${edu.datasource.username}
-    password: ${edu.datasource.password}
-    url: jdbc:mysql://${edu.datasource.host}:${edu.datasource.port}/${edu.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: ${custom.datasource.driver-class-name}
+    username: ${custom.datasource.username}
+    password: ${custom.datasource.password}
+    url: jdbc:mysql://${custom.datasource.host}:${custom.datasource.port}/${custom.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
   data:
     redis:
-      host: ${edu.redis.host}
-      port: ${edu.redis.port}
-      password: ${edu.redis.password}
-      database: ${edu.redis.database}
+      host: ${custom.redis.host}
+      port: ${custom.redis.port}
+      password: ${custom.redis.password}
+      database: ${custom.redis.database}
       connect-timeout: 10s
+logging:
+  level:
+    org.springframework.security: DEBUG
+
+edu:
   mail:
     host: smtp.qq.com
     port: 465
     username: your@qq.com
     password: your-auth-code
+    from-name: Edu-B
     properties:
       mail:
         smtp:
           auth: true
           ssl:
             enable: true
-logging:
-  level:
-    org.springframework.security: DEBUG
-edu:
-  ai:
-    provider: ${TEACHER_AI_PROVIDER:compatible}
-    grading-model: ${TEACHER_AI_MODEL:${AI_COMPANION_MODEL:qwen2.5:3b}}
+    captcha:
+      length: 6
+      expire-minutes: 5
+
+  jwt:
+    secret-key: abcdefghijklmnopqabcdefghijklmnopq
+    expire-time: 72000000000
+    jwt-name: Authorization
+
+  course-storage:
+    local-path: uploads
+    public-base-url: ${custom.course-storage.public-base-url}
+  minio:
+    public_base_url: ${custom.minio.public_base_url}
+    endpoint: ${custom.minio.endpoint}
+    access_key: ${custom.minio.access_key}
+    secret_key: ${custom.minio.secret_key}
+    bucker_name: edu
+    avatar:
+      avatar_files_base_url: avatar/files/
+      default_avatar: avatar/default_avatar.png
+    rag:
+      rag_files_base_url: rag/files/
+      max_rag_file_size: 100MB
+      max_ref_rag_kb_count: 10
+      max_ref_rag_doc_count: 100
+  milvus:
+    endpoint: ${custom.milvus.endpoint}
+    token: ${custom.milvus.token}
+    database_name: Edu
+    rag:
+      top_k: 8
+      score_threshold: 0.6
+      collection_name: rag_chunk
+      vector:
+        dimension: 2048
+        metric_type: COSINE
+  ai-model:
+    rag:
+      chat-model:
+        max-history-message-count: 20
+        supplier: ${custom.ai-model.rag.chat-model.supplier}
+        base-url: ${custom.ai-model.rag.chat-model.base-url}
+        api-key: ${custom.ai-model.rag.chat-model.api-key}
+        model-type: ${custom.ai-model.rag.chat-model.model-type}
+        model-name: ${custom.ai-model.rag.chat-model.model-name}
+      text-model:
+        max-history-message-count: 20
+        supplier: ${custom.ai-model.rag.text-model.supplier}
+        base-url: ${custom.ai-model.rag.text-model.base-url}
+        api-key: ${custom.ai-model.rag.text-model.api-key}
+        model-type: ${custom.ai-model.rag.text-model.model-type}
+        model-name: ${custom.ai-model.rag.text-model.model-name}
+      multi-model:
+        max-history-message-count: 20
+        supplier: ${custom.ai-model.rag.multi-model.supplier}
+        base-url: ${custom.ai-model.rag.multi-model.base-url}
+        api-key: ${custom.ai-model.rag.multi-model.api-key}
+        model-type: ${custom.ai-model.rag.multi-model.model-type}
+        model-name: ${custom.ai-model.rag.multi-model.model-name}
+      embedding-model:
+        max-history-message-count: 20
+        supplier: ${custom.ai-model.rag.embedding-model.supplier}
+        base-url: ${custom.ai-model.rag.embedding-model.base-url}
+        api-key: ${custom.ai-model.rag.embedding-model.api-key}
+        model-type: ${custom.ai-model.rag.embedding-model.model-type}
+        model-name: ${custom.ai-model.rag.embedding-model.model-name}
+    teacher-ai:
+      chat-model:
+        supplier: ${custom.ai-model.teacher-ai.chat-model.supplier}
+        base-url: ${custom.ai-model.teacher-ai.chat-model.base-url}
+        api-key: ${custom.ai-model.teacher-ai.chat-model.api-key}
+        model-type: ${custom.ai-model.teacher-ai.chat-model.model-type}
+        model-name: ${custom.ai-model.teacher-ai.chat-model.model-name}
+        timeout: ${custom.ai-model.teacher-ai.chat-model.timeout}
+        max-tokens: ${custom.ai-model.teacher-ai.chat-model.max-tokens}
     companion:
-      enabled: ${AI_COMPANION_ENABLED:true}
-      api-url: ${AI_COMPANION_API_URL:}
-      api-key: ${AI_COMPANION_API_KEY:}
-      api-key-required: ${AI_COMPANION_API_KEY_REQUIRED:false}
-      model: ${AI_COMPANION_MODEL:qwen2.5:3b}
-      timeout-seconds: ${AI_COMPANION_TIMEOUT_SECONDS:90}
-      max-tokens: ${AI_COMPANION_MAX_TOKENS:560}
-      web-search-enabled: ${AI_COMPANION_WEB_SEARCH_ENABLED:true}
-      web-search-url: ${AI_COMPANION_WEB_SEARCH_URL:https://www.bing.com/search}
-      web-search-timeout-seconds: ${AI_COMPANION_WEB_SEARCH_TIMEOUT_SECONDS:8}
-  learning-ai:
-    # OpenAI-compatible chat/completions URL. Keep credentials in environment variables, never commit them.
-    base-url: ${LEARNING_AI_BASE_URL:}
-    api-key: ${LEARNING_AI_API_KEY:}
-    model: ${LEARNING_AI_MODEL:gpt-4.1-mini}
-    # Some OpenAI-compatible providers reject response_format. The gateway retries once without it.
-    json-mode: ${LEARNING_AI_JSON_MODE:true}
+      enabled: ${custom.ai-model.companion.enabled}
+      chat-model:
+        supplier: ${custom.ai-model.companion.chat-model.supplier}
+        base-url: ${custom.ai-model.companion.chat-model.base-url}
+        api-key: ${custom.ai-model.companion.chat-model.api-key}
+        api-key-required: ${custom.ai-model.companion.chat-model.api-key-required}
+        model-type: ${custom.ai-model.companion.chat-model.model-type}
+        model-name: ${custom.ai-model.companion.chat-model.model-name}
+        timeout: ${custom.ai-model.companion.chat-model.timeout}
+        max-tokens: ${custom.ai-model.companion.chat-model.max-tokens}
+      web-search:
+        enabled: ${custom.ai-model.companion.web-search.enabled}
+        url: ${custom.ai-model.companion.web-search.url}
+        timeout: ${custom.ai-model.companion.web-search.timeout}
+    learning-analysis:
+      chat-model:
+        supplier: ${custom.ai-model.learning-analysis.chat-model.supplier}
+        base-url: ${custom.ai-model.learning-analysis.chat-model.base-url}
+        api-key: ${custom.ai-model.learning-analysis.chat-model.api-key}
+        model-type: ${custom.ai-model.learning-analysis.chat-model.model-type}
+        model-name: ${custom.ai-model.learning-analysis.chat-model.model-name}
+    safety-semantic:
+      chat-model:
+        supplier: ${custom.ai-model.safety-semantic.chat-model.supplier}
+        base-url: ${custom.ai-model.safety-semantic.chat-model.base-url}
+        api-key: ${custom.ai-model.safety-semantic.chat-model.api-key}
+        model-type: ${custom.ai-model.safety-semantic.chat-model.model-type}
+        model-name: ${custom.ai-model.safety-semantic.chat-model.model-name}
+        timeout: ${custom.ai-model.safety-semantic.chat-model.timeout}
+    draw-guess:
+      multi-model:
+        supplier: ${custom.ai-model.draw-guess.multi-model.supplier}
+        base-url: ${custom.ai-model.draw-guess.multi-model.base-url}
+        api-key: ${custom.ai-model.draw-guess.multi-model.api-key}
+        model-type: ${custom.ai-model.draw-guess.multi-model.model-type}
+        model-name: ${custom.ai-model.draw-guess.multi-model.model-name}
+        timeout: ${custom.ai-model.draw-guess.multi-model.timeout}
+    face:
+      tencent:
+        secret-id: ${custom.ai-model.face.tencent.secret-id}
+        secret-key: ${custom.ai-model.face.tencent.secret-key}
+        region: ${custom.ai-model.face.tencent.region}
+        endpoint: ${custom.ai-model.face.tencent.endpoint}
+        version: ${custom.ai-model.face.tencent.version}
+        compare-threshold: ${custom.ai-model.face.tencent.compare-threshold}
+        timeout-seconds: ${custom.ai-model.face.tencent.timeout-seconds}

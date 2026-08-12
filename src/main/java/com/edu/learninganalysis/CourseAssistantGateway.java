@@ -1,9 +1,9 @@
 package com.edu.learninganalysis;
 
+import com.edu.common.properties.AIModelProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -31,18 +31,13 @@ public class CourseAssistantGateway {
     private final String model;
     private final boolean jsonMode;
 
-    public CourseAssistantGateway(
-            ObjectMapper objectMapper,
-            @Value("${edu.learning-ai.base-url:}") String baseUrl,
-            @Value("${edu.learning-ai.api-key:}") String apiKey,
-            @Value("${edu.learning-ai.model:gpt-4.1-mini}") String model,
-            @Value("${edu.learning-ai.json-mode:true}") boolean jsonMode
-    ) {
+    public CourseAssistantGateway(ObjectMapper objectMapper, AIModelProperties properties) {
+        AIModelProperties.Model config = properties.getLearningAnalysis().getChatModel();
         this.objectMapper = objectMapper;
-        this.baseUrl = baseUrl;
-        this.apiKey = apiKey;
-        this.model = StringUtils.hasText(model) ? model : "gpt-4.1-mini";
-        this.jsonMode = jsonMode;
+        this.baseUrl = config.getBaseUrl();
+        this.apiKey = config.getApiKey();
+        this.model = StringUtils.hasText(config.getModelName()) ? config.getModelName() : "gpt-4.1-mini";
+        this.jsonMode = true;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
     }
 
@@ -108,7 +103,7 @@ public class CourseAssistantGateway {
 
     private Optional<JsonNode> requestJson(String system, String user) {
         if (!StringUtils.hasText(baseUrl) || !StringUtils.hasText(apiKey)) {
-            log.debug("Learning AI provider is not configured; set edu.learning-ai base-url and api-key");
+            log.debug("Learning AI provider is not configured; set edu.ai-model.learning-analysis.chat-model base-url and api-key");
             return Optional.empty();
         }
         Optional<String> content = requestCompletion(system, user, jsonMode);

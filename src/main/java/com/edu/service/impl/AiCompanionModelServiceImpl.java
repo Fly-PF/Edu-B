@@ -1,6 +1,6 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.AiCompanionProperties;
+import com.edu.common.properties.AIModelProperties;
 import com.edu.pojo.vo.ai.AiCompanionContextVO;
 import com.edu.pojo.vo.ai.AiCompanionMaterialExcerpt;
 import com.edu.pojo.vo.ai.AiCompanionWebSource;
@@ -28,7 +28,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AiCompanionModelServiceImpl implements AiCompanionModelService {
-    private final AiCompanionProperties properties;
+    private final AIModelProperties aiModelProperties;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -37,7 +37,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             List<AiCompanionMessageVO> history,
             String question
     ) {
-        if (!properties.isEnabled() || isBlank(properties.getApiUrl()) || requiresApiKeyWithoutOne()) {
+        if (!config().isEnabled() || isBlank(model().getBaseUrl()) || requiresApiKeyWithoutOne()) {
             return modelUnavailable(context, "MODEL_DISABLED");
         }
 
@@ -46,7 +46,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             return new AiCompanionModelResult(
                     formatEvidenceAnswer(context, answer),
                     "MODEL",
-                    properties.getModel(),
+                    model().getModelName(),
                     buildSourceSummary(context),
                     "NORMAL"
             );
@@ -84,9 +84,9 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
         messages.add(new ChatMessage("user", question));
 
         var payload = objectMapper.createObjectNode();
-        payload.put("model", properties.getModel());
+        payload.put("model", model().getModelName());
         payload.put("temperature", 0.2);
-        payload.put("max_tokens", properties.getMaxTokens());
+        payload.put("max_tokens", model().getMaxTokens() == null ? 560 : model().getMaxTokens());
         var messageArray = payload.putArray("messages");
         for (ChatMessage message : messages) {
             var messageNode = messageArray.addObject();
@@ -95,16 +95,16 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
         }
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(properties.getApiUrl()))
-                .timeout(Duration.ofSeconds(Math.max(5, properties.getTimeoutSeconds())))
+                .uri(URI.create(model().getBaseUrl()))
+                .timeout(Duration.ofMillis(Math.max(5_000, model().getTimeout() == null ? 90_000 : model().getTimeout())))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)));
-        if (!isBlank(properties.getApiKey())) {
-            requestBuilder.header("Authorization", "Bearer " + properties.getApiKey());
+        if (!isBlank(model().getApiKey())) {
+            requestBuilder.header("Authorization", "Bearer " + model().getApiKey());
         }
 
         HttpResponse<String> response = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(Math.max(5, properties.getTimeoutSeconds())))
+                .connectTimeout(Duration.ofMillis(Math.max(5_000, model().getTimeout() == null ? 90_000 : model().getTimeout())))
                 .build()
                 .send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -118,6 +118,9 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
         }
         return content.asText().trim();
     }
+
+    private AIModelProperties.Business config() { return aiModelProperties.getCompanion(); }
+    private AIModelProperties.Model model() { return config().getChatModel(); }
 
     private String buildSystemPrompt(AiCompanionContextVO context) {
         return "你是 Edu-F 教育平台的课程智能学伴。请使用简体中文，先给结论，再用 2 到 4 条说明解释。"
@@ -214,7 +217,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
     }
 
     private boolean requiresApiKeyWithoutOne() {
-        return properties.isApiKeyRequired() && isBlank(properties.getApiKey());
+        return model().isApiKeyRequired() && isBlank(model().getApiKey());
     }
 
     private String buildEvidenceInstructions(AiCompanionContextVO context) {

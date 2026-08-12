@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
-@ConditionalOnProperty(prefix = "edu.safety.semantic", name = "provider", havingValue = "mock")
+@ConditionalOnProperty(name = "edu.ai-model.safety-semantic.chat-model.supplier", havingValue = "mock")
 public class MockSemanticReviewService implements SemanticReviewService {
     private static final List<String> CHEATING_INTENT_PHRASES = List.of(
             "不要让老师发现",

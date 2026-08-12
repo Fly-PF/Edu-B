@@ -81,14 +81,14 @@ public class ImageTextExtractUtil {
         }
 
         String contentType = detectImageContentType(imageBytes);
-        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
-        if (provider == null || !StringUtils.hasText(provider.getApiKey()) || !StringUtils.hasText(provider.getBaseUrl())
-                || provider.getMultiModel() == null || !StringUtils.hasText(provider.getMultiModel().getModelName())
-                || provider.getMultiModel().getModelType() != AIModelProperties.ModelType.MultiModel) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "AI 多模态配置不完整，请检查 edu.ai-model.openai 相关配置");
+        AIModelProperties.Model model = aiModelProperties.getRag().getMultiModel();
+        if (model == null || !StringUtils.hasText(model.getApiKey()) || !StringUtils.hasText(model.getBaseUrl())
+                || !StringUtils.hasText(model.getModelName())
+                || model.getModelType() != AIModelProperties.ModelType.MultiModel) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "AI 多模态配置不完整，请检查 edu.ai-model.rag.multi-model 相关配置");
         }
 
-        String markdown = requestMarkdown(provider, imageBytes, contentType);
+        String markdown = requestMarkdown(model, imageBytes, contentType);
         if (!StringUtils.hasText(markdown)) {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "图片内容识别失败");
         }
@@ -99,10 +99,10 @@ public class ImageTextExtractUtil {
         return markdown;
     }
 
-    private String requestMarkdown(AIModelProperties.Provider provider, byte[] imageBytes, String contentType) {
+    private String requestMarkdown(AIModelProperties.Model model, byte[] imageBytes, String contentType) {
         try {
             ObjectNode payload = objectMapper.createObjectNode();
-            payload.put("model", provider.getMultiModel().getModelName());
+            payload.put("model", model.getModelName());
             payload.put("temperature", 0.0);
             payload.put("max_tokens", 4000);
 
@@ -115,16 +115,13 @@ public class ImageTextExtractUtil {
                     .putObject("image_url")
                     .put("url", "data:" + contentType + ";base64," + Base64.getEncoder().encodeToString(imageBytes));
 
-            String baseUrl = provider.getBaseUrl().replaceAll("/+$", "");
-            URI endpoint = URI.create(baseUrl.endsWith("/chat/completions")
-                    ? baseUrl
-                    : baseUrl + "/chat/completions");
+            URI endpoint = URI.create(model.getBaseUrl());
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(endpoint)
                     .timeout(Duration.ofSeconds(90))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)));
-            if (StringUtils.hasText(provider.getApiKey())) {
-                requestBuilder.header("Authorization", "Bearer " + provider.getApiKey());
+            if (StringUtils.hasText(model.getApiKey())) {
+                requestBuilder.header("Authorization", "Bearer " + model.getApiKey());
             }
 
             HttpResponse<String> response = HttpClient.newBuilder()
@@ -133,7 +130,7 @@ public class ImageTextExtractUtil {
                     .send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 log.error("Image OCR provider returned HTTP {} for model {}: {}", response.statusCode(),
-                        provider.getMultiModel().getModelName(), abbreviate(response.body()));
+                        model.getModelName(), abbreviate(response.body()));
                 throw new BaseException(HttpStatus.BAD_GATEWAY,
                         "图片识别接口返回 HTTP " + response.statusCode() + "：" + providerError(response.body()));
             }
@@ -157,7 +154,7 @@ public class ImageTextExtractUtil {
         } catch (BaseException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("Image OCR request failed for model {}", provider.getMultiModel().getModelName(), ex);
+            log.error("Image OCR request failed for model {}", model.getModelName(), ex);
             throw new BaseException(HttpStatus.BAD_GATEWAY,
                     "图片内容识别服务调用失败：" + abbreviate(ex.getMessage()));
         }

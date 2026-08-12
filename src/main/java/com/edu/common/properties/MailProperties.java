@@ -15,10 +15,19 @@ import org.springframework.stereotype.Component;
 @AllArgsConstructor
 public class MailProperties {
 
+    private String host;
+
+    private Integer port;
+
+    private String username;
+
+    private String password;
+
     @Builder.Default
     private String fromName = "Edu-B";
 
-    private String fromAddress;
+    @Builder.Default
+    private MailSettings properties = new MailSettings();
 
     @Builder.Default
     private Captcha captcha = new Captcha();
@@ -34,5 +43,46 @@ public class MailProperties {
 
         @Builder.Default
         private Long expireMinutes = 5L;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MailSettings {
+
+        @Builder.Default
+        private Mail mail = new Mail();
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Mail {
+
+        @Builder.Default
+        private Smtp smtp = new Smtp();
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Smtp {
+
+        private Boolean auth;
+
+        @Builder.Default
+        private Ssl ssl = new Ssl();
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Ssl {
+
+        private Boolean enable;
     }
 }

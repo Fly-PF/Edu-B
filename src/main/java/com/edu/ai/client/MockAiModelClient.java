@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 @Component
-@ConditionalOnProperty(name = "edu.ai.provider", havingValue = "mock")
+@ConditionalOnProperty(name = "edu.ai-model.teacher-ai.chat-model.supplier", havingValue = "mock")
 public class MockAiModelClient implements AiModelClient {
     @Override
     public LessonPlanGenerateResponse generateLessonPlan(LessonPlanGenerateRequest request) {

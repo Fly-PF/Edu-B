@@ -1,6 +1,6 @@
 package com.edu.ai.client;
 
-import com.edu.common.properties.AiCompanionProperties;
+import com.edu.common.properties.AIModelProperties;
 import com.edu.exception.UserErrorException;
 import com.edu.pojo.dto.teacherai.AiRubricItem;
 import com.edu.pojo.dto.teacherai.GradingDimensionScore;
@@ -33,12 +33,11 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "edu.ai.provider", havingValue = "compatible", matchIfMissing = true)
+@ConditionalOnProperty(name = "edu.ai-model.teacher-ai.chat-model.supplier", havingValue = "compatible", matchIfMissing = true)
 public class OpenAiCompatibleAiModelClient implements AiModelClient {
-    private final AiCompanionProperties properties;
+    private final AIModelProperties aiModelProperties;
     private final ObjectMapper objectMapper;
-    @Value("${edu.ai.grading-model:${edu.ai.companion.model:qwen2.5:3b}}")
-    private String gradingModel;
+    private static final int DEFAULT_MAX_TOKENS = 560;
 
     @Override
     public LessonPlanGenerateResponse generateLessonPlan(LessonPlanGenerateRequest request) {
@@ -85,16 +84,16 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
                 + "\n题目满分：" + request.getMaxScore()
                 + "\n【评分标准】\n" + rubricText(request.getRubric())
                 + "\n输出前再次检查：评分理由中声称学生回答的每个知识点，必须能在学生答案原文中找到。";
-        JsonNode json = requestJson(system, user, 1400, gradingModel);
+        JsonNode json = requestJson(system, user, 1400, teacherModel().getModelName());
         return normalizeGrading(request, json);
     }
 
     private JsonNode requestJson(String system, String user, int maxTokens) {
-        return requestJson(system, user, maxTokens, properties.getModel());
+        return requestJson(system, user, maxTokens, teacherModel().getModelName());
     }
 
     private JsonNode requestJson(String system, String user, int maxTokens, String model) {
-        if (!properties.isEnabled() || !StringUtils.hasText(properties.getApiUrl())) {
+        if (!aiModelProperties.getTeacherAi().isEnabled() || !StringUtils.hasText(teacherModel().getBaseUrl())) {
             throw new UserErrorException(HttpStatus.SERVICE_UNAVAILABLE, "AI 模型尚未配置，请先启动或配置 Ollama");
         }
         try {
@@ -117,9 +116,9 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
 
     private HttpResponse<String> send(String system, String user, int maxTokens, boolean jsonMode, String model) throws Exception {
         var payload = objectMapper.createObjectNode();
-        payload.put("model", StringUtils.hasText(model) ? model : properties.getModel());
+        payload.put("model", StringUtils.hasText(model) ? model : teacherModel().getModelName());
         payload.put("temperature", 0.15);
-        payload.put("max_tokens", Math.max(maxTokens, properties.getMaxTokens()));
+        payload.put("max_tokens", Math.max(maxTokens, teacherModel().getMaxTokens() == null ? DEFAULT_MAX_TOKENS : teacherModel().getMaxTokens()));
         if (jsonMode) {
             payload.putObject("response_format").put("type", "json_object");
         }
@@ -127,17 +126,22 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
         messages.addObject().put("role", "system").put("content", system);
         messages.addObject().put("role", "user").put("content", user);
 
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(properties.getApiUrl()))
-                .timeout(Duration.ofSeconds(Math.max(15, properties.getTimeoutSeconds())))
+        AIModelProperties.Model config = teacherModel();
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(config.getBaseUrl()))
+                .timeout(Duration.ofMillis(Math.max(15_000, config.getTimeout() == null ? 90_000 : config.getTimeout())))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)));
-        if (StringUtils.hasText(properties.getApiKey())) {
-            builder.header("Authorization", "Bearer " + properties.getApiKey());
+        if (StringUtils.hasText(config.getApiKey())) {
+            builder.header("Authorization", "Bearer " + config.getApiKey());
         }
         HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(Math.max(10, properties.getTimeoutSeconds())))
+                .connectTimeout(Duration.ofMillis(Math.max(10_000, config.getTimeout() == null ? 90_000 : config.getTimeout())))
                 .build();
         return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private AIModelProperties.Model teacherModel() {
+        return aiModelProperties.getTeacherAi().getChatModel();
     }
 
     private GradingGenerateResponse normalizeGrading(GradingGenerateRequest request, JsonNode json) {

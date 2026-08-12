@@ -1,12 +1,13 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.FaceRecognitionProperties;
+import com.edu.common.properties.AIModelProperties;
 import com.edu.exception.BaseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -30,7 +31,7 @@ public class TencentFaceClient {
     private static final String ALGORITHM = "TC3-HMAC-SHA256";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
 
-    private final FaceRecognitionProperties properties;
+    private final AIModelProperties aiModelProperties;
     private final ObjectMapper objectMapper;
 
     public DetectFaceResult detectFace(String imageBase64) {
@@ -56,7 +57,7 @@ public class TencentFaceClient {
         ));
         JsonNode responseNode = response.path("Response");
         double score = responseNode.path("Score").asDouble(0D);
-        double threshold = properties.getTencent().getCompareThreshold();
+        double threshold = aiModelProperties.getFace().getTencent().getCompareThreshold();
         return new CompareFaceResult(
                 score,
                 score >= threshold,
@@ -67,12 +68,12 @@ public class TencentFaceClient {
     }
 
     public boolean isConfigured() {
-        return StringUtils.hasText(properties.getTencent().getSecretId())
-                && StringUtils.hasText(properties.getTencent().getSecretKey());
+        AIModelProperties.Tencent tencent = aiModelProperties.getFace().getTencent();
+        return StringUtils.hasText(tencent.getSecretId()) && StringUtils.hasText(tencent.getSecretKey());
     }
 
     private JsonNode invoke(String action, Map<String, Object> payload) {
-        FaceRecognitionProperties.Tencent tencent = properties.getTencent();
+        AIModelProperties.Tencent tencent = aiModelProperties.getFace().getTencent();
         if (!isConfigured()) {
             throw new BaseException(HttpStatus.SERVICE_UNAVAILABLE, "未配置腾讯云人脸识别密钥");
         }
@@ -99,8 +100,13 @@ public class TencentFaceClient {
                 + ", Signature=" + signature;
 
         try {
+            int timeout = Math.max(1, tencent.getTimeoutSeconds() == null ? 20 : tencent.getTimeoutSeconds()) * 1_000;
+            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+            requestFactory.setConnectTimeout(timeout);
+            requestFactory.setReadTimeout(timeout);
             String responseBody = RestClient.builder()
                     .baseUrl("https://" + host)
+                    .requestFactory(requestFactory)
                     .defaultHeader(HttpHeaders.AUTHORIZATION, authorization)
                     .defaultHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
                     .defaultHeader(HttpHeaders.HOST, host)

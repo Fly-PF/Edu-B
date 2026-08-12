@@ -23,17 +23,17 @@ public class TextEmbeddingUtil {
             throw new BaseException(HttpStatus.BAD_REQUEST, "文本不能为空");
         }
 
-        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
-        if (provider == null || !StringUtils.hasText(provider.getApiKey()) || !StringUtils.hasText(provider.getBaseUrl())
-                || provider.getEmbeddingModel() == null || !StringUtils.hasText(provider.getEmbeddingModel().getModelName())) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "AI 向量配置不完整，请检查 edu.ai-model.openai 相关配置");
+        AIModelProperties.Model model = aiModelProperties.getRag().getEmbeddingModel();
+        if (model == null || !StringUtils.hasText(model.getApiKey()) || !StringUtils.hasText(model.getBaseUrl())
+                || !StringUtils.hasText(model.getModelName())) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "AI 向量配置不完整，请检查 edu.ai-model.rag.embedding-model 相关配置");
         }
 
         OpenAiEmbeddingModel embeddingModel = OpenAiEmbeddingModel.builder()
                 .options(OpenAiEmbeddingOptions.builder()
-                        .apiKey(provider.getApiKey())
-                        .baseUrl(provider.getBaseUrl())
-                        .model(provider.getEmbeddingModel().getModelName())
+                        .apiKey(model.getApiKey())
+                        .baseUrl(model.getBaseUrl())
+                        .model(model.getModelName())
                         .dimensions(VECTOR_DIMENSION)
                         .build())
                 .observationRegistry(ObservationRegistry.NOOP)

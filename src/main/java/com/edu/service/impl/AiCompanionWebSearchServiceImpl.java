@@ -1,6 +1,6 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.AiCompanionProperties;
+import com.edu.common.properties.AIModelProperties;
 import com.edu.pojo.vo.ai.AiCompanionWebSource;
 import com.edu.service.AiCompanionWebSearchService;
 import lombok.RequiredArgsConstructor;
@@ -34,24 +34,25 @@ import java.util.List;
 public class AiCompanionWebSearchServiceImpl implements AiCompanionWebSearchService {
     private static final int MAX_SOURCES = 3;
     private static final int MAX_QUESTION_LENGTH = 240;
-    private final AiCompanionProperties properties;
+    private final AIModelProperties aiModelProperties;
 
     @Override
     public List<AiCompanionWebSource> search(String question) {
-        if (!properties.isWebSearchEnabled() || !StringUtils.hasText(properties.getWebSearchUrl()) || !isSafeQuery(question)) {
+        AIModelProperties.WebSearch properties = aiModelProperties.getCompanion().getWebSearch();
+        if (properties == null || !properties.isEnabled() || !StringUtils.hasText(properties.getUrl()) || !isSafeQuery(question)) {
             return List.of();
         }
         try {
             String query = URLEncoder.encode(question.trim().substring(0, Math.min(question.trim().length(), MAX_QUESTION_LENGTH)), StandardCharsets.UTF_8);
-            String separator = properties.getWebSearchUrl().contains("?") ? "&" : "?";
+            String separator = properties.getUrl().contains("?") ? "&" : "?";
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(properties.getWebSearchUrl() + separator + "format=rss&q=" + query))
-                    .timeout(Duration.ofSeconds(Math.max(3, properties.getWebSearchTimeoutSeconds())))
+                    .uri(URI.create(properties.getUrl() + separator + "format=rss&q=" + query))
+                    .timeout(Duration.ofMillis(Math.max(1000, properties.getTimeout())))
                     .header("User-Agent", "EduF-CourseCompanion/1.0")
                     .GET()
                     .build();
             HttpResponse<byte[]> response = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(Math.max(3, properties.getWebSearchTimeoutSeconds())))
+                    .connectTimeout(Duration.ofMillis(Math.max(1000, properties.getTimeout())))
                     .build()
                     .send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {

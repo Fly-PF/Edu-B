@@ -1,7 +1,6 @@
-﻿edu:
+custom:
   course-storage:
-    local-path: ${COURSE_STORAGE_LOCAL_PATH:uploads}
-    public-base-url: ${COURSE_STORAGE_PUBLIC_BASE_URL:}
+    public-base-url: http://localhost:8080
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: 192.168.40.135
@@ -18,70 +17,88 @@
     endpoint: http://192.168.40.135:9000
     access_key: root
     secret_key: rootroot
-    bucker_name: edu
-    public_base_url: http://192.168.40.135:8080
-    avatar:
-      avatar_files_base_url: avatar/files/
-      default_avatar: avatar/default_avatar.png
-    rag:
-      rag_files_base_url: rag/files/
-      max_rag_file_size: 100MB
-      max_ref_rag_kb_count: 10
-      max_ref_rag_doc_count: 100
+    public_base_url: http://localhost:8080
   milvus:
     endpoint: http://192.168.40.135:19530
     token: rootroot
-    database_name: Edu
-    rag:
-      top_k: 8
-      score_threshold: 0.6
-      collection_name: rag_chunk
-      vector:
-        dimension: 2048
-        metric_type: COSINE
   ai-model:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    rag:
       chat-model:
-        max-history-message-count: 20
+        supplier: openai
+        base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+        api-key: ${OPENAI_API_KEY}
         model-type: multimodel
         model-name: qwen3.5-omni-flash
       text-model:
-        max-history-message-count: 200
+        supplier: openai
+        base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+        api-key: ${OPENAI_API_KEY}
         model-type: textmodel
         model-name: qwen3.7-plus
       multi-model:
-        max-history-message-count: 20
+        supplier: openai
+        base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+        api-key: ${OPENAI_API_KEY}
         model-type: multimodel
         model-name: qwen3.5-omni-flash
       embedding-model:
-        max-history-message-count: 20
+        supplier: openai
+        base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+        api-key: ${OPENAI_API_KEY}
         model-type: textembedmodel
         model-name: qwen3.7-text-embedding
 
-  # jwt、mail 不用改动，本地自测完全通用
-  jwt:
-    secret-key: abcdefghijklmnopqabcdefghijklmnopq
-    expire-time: 72000000000
-    jwt-name: Authorization
-  mail:
-    from-name: Edu-B
-    captcha:
-      length: 6
-      expire-minutes: 5
-  ai:
+    teacher-ai:
+      chat-model:
+        supplier: compatible
+        base-url: http://localhost:11434/v1/chat/completions
+        api-key: ${TEACHER_AI_API_KEY}
+        model-type: textmodel
+        model-name: qwen2.5:3b
+        timeout: 90000
+        max-tokens: 560
     companion:
-      api-url: ${AI_COMPANION_API_URL:}
-    openai:
-      api-key: ${OPENAI_API_KEY:}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-      model: ${OPENAI_MODEL:gpt-5.6-luna}
-      timeout-seconds: ${OPENAI_TIMEOUT_SECONDS:20}
+      enabled: true
+      chat-model:
+        supplier: ollama
+        base-url: http://localhost:11434/v1/chat/completions
+        api-key: ${AI_COMPANION_API_KEY}
+        api-key-required: false
+        model-type: textmodel
+        model-name: qwen2.5:3b
+        timeout: 90000
+        max-tokens: 560
+      web-search:
+        enabled: true
+        url: https://www.bing.com/search
+        timeout: 8000
+    learning-analysis:
+      chat-model:
+        supplier: openai
+        base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+        api-key: ${LEARNING_AI_API_KEY}
+        model-type: textmodel
+        model-name: gpt-4.1-mini
+    safety-semantic:
+      chat-model:
+        supplier: dashscope
+        base-url: https://llm-0ztuci5it54ptrlp.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+        api-key: ${DASHSCOPE_API_KEY}
+        model-type: textmodel
+        model-name: qwen3.7-plus
+        timeout: 20000
+    draw-guess:
+      multi-model:
+        supplier: openai
+        base-url: https://api.openai.com/v1/responses
+        api-key: ${DRAW_GUESS_API_KEY}
+        model-type: multimodel
+        model-name: gpt-5.6-luna
+        timeout: 20000
     face:
       tencent:
-        secret-id: ${TENCENT_FACE_SECRET_ID:}
-        secret-key: ${TENCENT_FACE_SECRET_KEY:}
+        secret-id: ${TENCENT_FACE_SECRET_ID}
+        secret-key: ${TENCENT_FACE_SECRET_KEY}
         region: ${TENCENT_FACE_REGION:ap-guangzhou}
         endpoint: ${TENCENT_FACE_ENDPOINT:iai.tencentcloudapi.com}
         version: ${TENCENT_FACE_VERSION:2020-03-03}

@@ -1,6 +1,6 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.SafetySemanticProperties;
+import com.edu.common.properties.AIModelProperties;
 import com.edu.pojo.dto.safety.SemanticReviewRequest;
 import com.edu.pojo.dto.safety.SemanticReviewResponse;
 import com.edu.pojo.enums.safety.SafetyDecision;
@@ -29,18 +29,16 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "edu.safety.semantic", name = "provider", havingValue = "dashscope")
+@ConditionalOnProperty(name = "edu.ai-model.safety-semantic.chat-model.supplier", havingValue = "dashscope")
 public class DashScopeSemanticReviewService implements SemanticReviewService {
-    private static final String DEFAULT_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-    private static final String DEFAULT_MODEL = "qwen3.7-plus";
-    private static final int DEFAULT_TIMEOUT_SECONDS = 20;
+    private static final int DEFAULT_TIMEOUT_MILLIS = 20_000;
 
-    private final SafetySemanticProperties properties;
+    private final AIModelProperties aiModelProperties;
     private final ObjectMapper objectMapper;
 
     @Override
     public SemanticReviewResponse review(SemanticReviewRequest request) {
-        if (!StringUtils.hasText(properties.getApiKey())) {
+        if (!StringUtils.hasText(model().getApiKey())) {
             return pass("dashscope-api-key-missing", "未配置大模型 API Key，已跳过语义审核。");
         }
 
@@ -49,9 +47,9 @@ public class DashScopeSemanticReviewService implements SemanticReviewService {
                     .connectTimeout(timeout())
                     .build();
             HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint()))
+                    .uri(URI.create(model().getBaseUrl()))
                     .timeout(timeout())
-                    .header("Authorization", "Bearer " + properties.getApiKey())
+                    .header("Authorization", "Bearer " + model().getApiKey())
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(buildPayload(request), StandardCharsets.UTF_8))
                     .build();
@@ -73,10 +71,10 @@ public class DashScopeSemanticReviewService implements SemanticReviewService {
 
     private String buildPayload(SemanticReviewRequest request) throws IOException {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", model());
+        payload.put("model", model().getModelName());
         payload.put("temperature", 0);
         payload.put("stream", false);
-        payload.put("enable_thinking", enableThinking());
+        payload.put("enable_thinking", false);
         payload.put("response_format", Map.of("type", "json_object"));
         payload.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt()),
@@ -284,21 +282,11 @@ public class DashScopeSemanticReviewService implements SemanticReviewService {
     }
 
     private Duration timeout() {
-        Integer seconds = properties.getTimeoutSeconds();
-        return Duration.ofSeconds(seconds == null || seconds < 1 ? DEFAULT_TIMEOUT_SECONDS : seconds);
+        Integer timeout = model().getTimeout();
+        return Duration.ofMillis(timeout == null || timeout < 1 ? DEFAULT_TIMEOUT_MILLIS : timeout);
     }
 
-    private String endpoint() {
-        return firstNonBlank(properties.getEndpoint(), DEFAULT_ENDPOINT);
-    }
-
-    private String model() {
-        return firstNonBlank(properties.getModel(), DEFAULT_MODEL);
-    }
-
-    private boolean enableThinking() {
-        return properties.getEnableThinking() == null || properties.getEnableThinking();
-    }
+    private AIModelProperties.Model model() { return aiModelProperties.getSafetySemantic().getChatModel(); }
 
     private String value(Object value) {
         return value == null ? "UNKNOWN" : value.toString();

@@ -490,8 +490,8 @@ public class RagServiceImpl implements RagService {
             throw new BaseException(HttpStatus.BAD_REQUEST, "朗读文本不能为空");
         }
 
-        AIModelProperties.Provider provider = getTextProvider();
-        OpenAiChatModel textModel = buildOpenAiChatModel(provider, provider.getTextModel().getModelName(), false);
+        AIModelProperties.Model model = getTextModel();
+        OpenAiChatModel textModel = buildOpenAiChatModel(model, false);
         CompletableFuture<ChatResponse> task = CompletableFuture.supplyAsync(
                 () -> textModel.call(new Prompt(SPEECH_TEXT_PROMPT.formatted(content.trim()))));
         try {
@@ -522,7 +522,7 @@ public class RagServiceImpl implements RagService {
             String imageText = extractChatImageText(imageInputs);
             RagChatContext context = buildChatContext(userId, sessionId, message, imageText, history);
             StringBuilder answer = new StringBuilder();
-            OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
+            OpenAiChatModel chatModel = buildOpenAiChatModel(getChatModel());
             Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(),
                             isMultiModel() ? imageInputs : List.of()))
                     .flatMap(response -> {
@@ -564,7 +564,7 @@ public class RagServiceImpl implements RagService {
             String imageText = extractChatImageText(imageInputs);
             RagChatContext context = buildChatContext(userId, sessionId, message, imageText);
             StringBuilder answer = new StringBuilder();
-            OpenAiChatModel chatModel = buildOpenAiChatModel(getChatProvider());
+            OpenAiChatModel chatModel = buildOpenAiChatModel(getChatModel());
             Flux<ServerSentEvent<RagChatMessageVO>> streamFrames = chatModel.stream(buildChatPrompt(context.prompt(),
                             isMultiModel() ? imageInputs : List.of()))
                     .flatMap(response -> {
@@ -776,8 +776,7 @@ public class RagServiceImpl implements RagService {
     }
 
     private boolean isMultiModel() {
-        AIModelProperties.Provider provider = getChatProvider();
-        return provider.getChatModel().getModelType() == AIModelProperties.ModelType.MultiModel;
+        return getChatModel().getModelType() == AIModelProperties.ModelType.MultiModel;
     }
 
     private String getImageContentType(String objectName) {
@@ -932,10 +931,8 @@ public class RagServiceImpl implements RagService {
     }
 
     private int maxHistoryMessageCount() {
-        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
-        Integer count = provider == null || provider.getChatModel() == null
-                ? null
-                : provider.getChatModel().getMaxHistoryMessageCount();
+        AIModelProperties.Model model = aiModelProperties.getRag().getChatModel();
+        Integer count = model == null ? null : model.getMaxHistoryMessageCount();
         return count == null || count < 1 ? 10 : count;
     }
 
@@ -1031,22 +1028,25 @@ public class RagServiceImpl implements RagService {
         return toChatMessageVO(assistantMessage, docRefs);
     }
 
-    private AIModelProperties.Provider getChatProvider() {
-        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
-        if (provider == null || !StringUtils.hasText(provider.getApiKey()) || !StringUtils.hasText(provider.getBaseUrl())
-                || provider.getChatModel() == null || !StringUtils.hasText(provider.getChatModel().getModelName())) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "AI配置不完整，请检查 edu.ai-model.openai 相关配置");
+    private AIModelProperties.Model getChatModel() {
+        AIModelProperties.Model model = aiModelProperties.getRag().getChatModel();
+        if (!isConfigured(model)) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "AI配置不完整，请检查 edu.ai-model.rag.chat-model 相关配置");
         }
-        return provider;
+        return model;
     }
 
-    private AIModelProperties.Provider getTextProvider() {
-        AIModelProperties.Provider provider = aiModelProperties.getOpenai();
-        if (provider == null || !StringUtils.hasText(provider.getApiKey()) || !StringUtils.hasText(provider.getBaseUrl())
-                || provider.getTextModel() == null || !StringUtils.hasText(provider.getTextModel().getModelName())) {
+    private AIModelProperties.Model getTextModel() {
+        AIModelProperties.Model model = aiModelProperties.getRag().getTextModel();
+        if (!isConfigured(model)) {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "朗读文本模型配置不完整");
         }
-        return provider;
+        return model;
+    }
+
+    private boolean isConfigured(AIModelProperties.Model model) {
+        return model != null && StringUtils.hasText(model.getApiKey())
+                && StringUtils.hasText(model.getBaseUrl()) && StringUtils.hasText(model.getModelName());
     }
 
     private String extractChatText(ChatResponse response) {
@@ -1593,29 +1593,15 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider) {
-        return buildOpenAiChatModel(provider, provider.getChatModel().getModelName());
+    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Model model) {
+        return buildOpenAiChatModel(model, false);
     }
 
-    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider, String modelName) {
+    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Model model, boolean enableThinking) {
         OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .apiKey(provider.getApiKey())
-                .baseUrl(provider.getBaseUrl())
-                .model(modelName)
-                .build();
-
-        return OpenAiChatModel.builder()
-                .options(options)
-                .observationRegistry(ObservationRegistry.NOOP)
-                .build();
-    }
-
-    private OpenAiChatModel buildOpenAiChatModel(AIModelProperties.Provider provider, String modelName,
-                                                 boolean enableThinking) {
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .apiKey(provider.getApiKey())
-                .baseUrl(provider.getBaseUrl())
-                .model(modelName)
+                .apiKey(model.getApiKey())
+                .baseUrl(model.getBaseUrl())
+                .model(model.getModelName())
                 .extraBody(Map.of("enable_thinking", enableThinking))
                 .build();
 

@@ -1,6 +1,6 @@
 package com.edu.service.impl;
 
-import com.edu.common.properties.OpenAIModelProperties;
+import com.edu.common.properties.AIModelProperties;
 import com.edu.exception.BaseException;
 import com.edu.pojo.dto.ai.AiDrawGuessRequest;
 import com.edu.pojo.vo.ai.AiDrawGuessPredictionVO;
@@ -27,22 +27,22 @@ import java.util.Map;
 public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessService {
     private static final int MAX_DATA_URL_LENGTH = 8 * 1024 * 1024;
 
-    private final OpenAIModelProperties openAIModelProperties;
+    private final AIModelProperties aiModelProperties;
     private final ObjectMapper objectMapper;
 
     @Override
     public AiDrawGuessResultVO guess(AiDrawGuessRequest request) {
         validateRequest(request);
-        OpenAIModelProperties.OpenAi openAi = openAIModelProperties.getOpenai();
-        if (!StringUtils.hasText(openAi.getApiKey())) {
+        AIModelProperties.Model model = aiModelProperties.getDrawGuess().getMultiModel();
+        if (!StringUtils.hasText(model.getApiKey())) {
             throw new BaseException(HttpStatus.SERVICE_UNAVAILABLE, "未配置 OpenAI API Key，无法调用真实视觉模型");
         }
 
-        String responseText = callOpenAi(openAi, request);
+        String responseText = callOpenAi(model, request);
         List<AiDrawGuessPredictionVO> predictions = parsePredictions(responseText);
         return AiDrawGuessResultVO.builder()
                 .provider("openai")
-                .model(openAi.getModel())
+                .model(model.getModelName())
                 .summary("AI 已根据画布图片返回猜测结果")
                 .predictions(predictions)
                 .build();
@@ -62,11 +62,11 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
     }
 
     private String callOpenAi(
-            OpenAIModelProperties.OpenAi openAi,
+            AIModelProperties.Model model,
             AiDrawGuessRequest request
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", openAi.getModel());
+        payload.put("model", model.getModelName());
         payload.put("max_output_tokens", 300);
         payload.put("input", List.of(Map.of(
                 "role", "user",
@@ -84,16 +84,17 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
 
         try {
             SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-            requestFactory.setConnectTimeout(15_000);
-            requestFactory.setReadTimeout(90_000);
+            int timeout = Math.max(1_000, model.getTimeout() == null ? 20_000 : model.getTimeout());
+            requestFactory.setConnectTimeout(timeout);
+            requestFactory.setReadTimeout(timeout);
             String body = RestClient.builder()
-                    .baseUrl(trimEndSlash(openAi.getBaseUrl()))
+                    .baseUrl(trimEndSlash(model.getBaseUrl()))
                     .requestFactory(requestFactory)
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + openAi.getApiKey())
+                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + model.getApiKey())
                     .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                     .build()
                     .post()
-                    .uri("/responses")
+                    .uri("")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(payload)
                     .retrieve()

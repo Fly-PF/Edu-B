@@ -104,13 +104,13 @@ public class MailUtil {
     private JavaMailSender getMailSender() {
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
         if (mailSender == null) {
-            throw new IllegalStateException("JavaMailSender is not configured. Please configure spring.mail settings first.");
+            throw new IllegalStateException("JavaMailSender is not configured. Please configure edu.mail settings first.");
         }
         return mailSender;
     }
 
     private void setFrom(MimeMessageHelper helper) throws MessagingException, UnsupportedEncodingException {
-        String fromAddress = mailProperties.getFromAddress();
+        String fromAddress = mailProperties.getUsername();
         if (!StringUtils.hasText(fromAddress)) {
             return;
         }
