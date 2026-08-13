@@ -9,8 +9,10 @@ import com.edu.pojo.dto.rag.RagChatSessionRenameRequest;
 import com.edu.pojo.dto.rag.RagSpeechTextRequest;
 import com.edu.pojo.dto.safety.SafetyGatewayRequest;
 import com.edu.pojo.dto.safety.SafetyGatewayResponse;
+import com.edu.pojo.dto.safety.SafetyRecordDTO;
 import com.edu.pojo.enums.safety.SafetyDecision;
 import com.edu.pojo.enums.safety.SafetyGradeLevel;
+import com.edu.pojo.enums.safety.SafetyReviewStatus;
 import com.edu.pojo.enums.safety.SafetyScene;
 import com.edu.pojo.enums.safety.SafetySourceModule;
 import com.edu.pojo.enums.safety.SafetyUserRole;
@@ -21,7 +23,9 @@ import com.edu.service.RagFileAccessService;
 import com.edu.service.RagService;
 import com.edu.service.safety.SafetyGatewaySupport;
 import com.edu.service.safety.SafetyGatewayService;
+import com.edu.service.safety.SafetyReviewDispatchService;
 import com.edu.util.SecurityUtil;
+import com.edu.util.SafetyGradeLevelResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -42,7 +46,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,6 +63,7 @@ public class RagChatController {
     private final RagFileAccessService ragFileAccessService;
     private final SafetyGatewayService safetyGatewayService;
     private final SafetyGatewaySupport safetyGatewaySupport;
+    private final SafetyReviewDispatchService safetyReviewDispatchService;
 
     @Operation(summary = "分页查询RAG聊天会话")
     @GetMapping("/chat/session/page")
@@ -108,11 +115,13 @@ public class RagChatController {
     @PostMapping(value = "/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Flux<ServerSentEvent<RagChatMessageVO>> chat(@Valid @ModelAttribute RagChatRequest request) {
+        UserInfoDTO loginUser = SecurityUtil.getLoginUser();
         SafetyGatewayResponse safetyResponse = safetyGatewayService.evaluate(SafetyGatewayRequest.builder()
                 .sourceModule(SafetySourceModule.EDUCATION_RAG)
                 .scene(resolveScene())
                 .userRole(resolveUserRole())
                 .gradeLevel(resolveGradeLevel())
+                .userId(loginUser == null ? null : loginUser.getUserId())
                 .inputText(request.getMessage())
                 .recordLog(true)
                 .metadata(Map.of(
@@ -129,6 +138,51 @@ public class RagChatController {
                     .role("assistant")
                     .content(firstNonBlank(safetyResponse.getReason(), "RAG请求被安全层拦截"))
                     .build()).build());
+        }
+        if (Boolean.TRUE.equals(safetyResponse.getManualReviewRequired())) {
+            Long reviewRecordId = safetyResponse.getRecordId();
+            if (reviewRecordId == null) {
+                return Flux.just(ServerSentEvent.builder(RagChatMessageVO.builder()
+                        .status("error")
+                        .sessionId(request.getSessionId())
+                        .messageId("safety-" + UUID.randomUUID())
+                        .role("assistant")
+                        .content("人工审核记录创建失败，请稍后重试")
+                        .build()).build());
+            }
+            Flux<ServerSentEvent<RagChatMessageVO>> pendingFrame = Flux.just(ServerSentEvent.builder(
+                    RagChatMessageVO.builder()
+                            .status("review_pending")
+                            .sessionId(request.getSessionId())
+                            .messageId("review-" + UUID.randomUUID())
+                            .role("assistant")
+                            .content("内容已提交人工审核，请等待管理员处理")
+                            .reviewRecordId(reviewRecordId)
+                            .build()
+            ).build());
+            Mono<SafetyRecordDTO> reviewMono = safetyReviewDispatchService.awaitDecision(reviewRecordId)
+                    .timeout(Duration.ofMinutes(30));
+            Flux<ServerSentEvent<RagChatMessageVO>> resultFrame = reviewMono.flatMapMany(review -> {
+                if (review != null && review.getReviewStatus() == SafetyReviewStatus.APPROVED) {
+                    return ragService.chatForReviewedRequest(loginUser.getUserId(), request, reviewRecordId);
+                }
+                return Flux.just(ServerSentEvent.builder(RagChatMessageVO.builder()
+                        .status("error")
+                        .sessionId(request.getSessionId())
+                        .messageId("safety-" + UUID.randomUUID())
+                        .role("assistant")
+                        .content("人工审核未通过，当前问答已停止")
+                        .reviewRecordId(reviewRecordId)
+                        .build()).build());
+            }).onErrorResume(ex -> Flux.just(ServerSentEvent.builder(RagChatMessageVO.builder()
+                    .status("error")
+                    .sessionId(request.getSessionId())
+                    .messageId("safety-" + UUID.randomUUID())
+                    .role("assistant")
+                    .content("人工审核等待超时，请稍后重试")
+                    .reviewRecordId(reviewRecordId)
+                    .build()).build()));
+            return Flux.concat(pendingFrame, resultFrame);
         }
         return ragService.chat(request);
     }
@@ -171,6 +225,13 @@ public class RagChatController {
     }
 
     private SafetyGradeLevel resolveGradeLevel() {
+        UserInfoDTO user = SecurityUtil.getLoginUser();
+        if (user != null) {
+            SafetyGradeLevel gradeLevel = SafetyGradeLevelResolver.resolve(user.getGrade());
+            if (gradeLevel != null) {
+                return gradeLevel;
+            }
+        }
         SafetyUserRole role = resolveUserRole();
         if (role == SafetyUserRole.TEACHER || role == SafetyUserRole.ADMIN) {
             return SafetyGradeLevel.SENIOR;

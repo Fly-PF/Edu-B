@@ -23,6 +23,7 @@ import com.edu.pojo.po.safety.SafetyRecordPO;
 import com.edu.repository.safety.SafetyRecordRepository;
 import com.edu.service.TeacherClassService;
 import com.edu.service.safety.SafetyRecordService;
+import com.edu.service.safety.SafetyReviewDispatchService;
 import com.edu.util.SecurityUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -55,6 +56,7 @@ public class SafetyRecordServiceImpl implements SafetyRecordService {
 
     private final SafetyRecordRepository safetyRecordRepository;
     private final TeacherClassService teacherClassService;
+    private final SafetyReviewDispatchService safetyReviewDispatchService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -442,7 +444,9 @@ public class SafetyRecordServiceImpl implements SafetyRecordService {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to save review result");
         }
         SafetyRecordPO updated = safetyRecordRepository.selectById(id);
-        return toDTO(updated == null ? record : updated);
+        SafetyRecordDTO result = toDTO(updated == null ? record : updated);
+        safetyReviewDispatchService.publishDecision(result);
+        return result;
     }
 
     private List<String> readStringList(String json) {

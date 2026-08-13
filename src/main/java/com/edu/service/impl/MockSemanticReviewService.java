@@ -6,6 +6,7 @@ import com.edu.pojo.enums.safety.SafetyDecision;
 import com.edu.pojo.enums.safety.SafetyGradeLevel;
 import com.edu.pojo.enums.safety.SafetyRiskLevel;
 import com.edu.pojo.enums.safety.SafetyRiskType;
+import com.edu.pojo.enums.safety.SafetyUserRole;
 import com.edu.service.safety.SemanticReviewService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -55,6 +56,10 @@ public class MockSemanticReviewService implements SemanticReviewService {
         SemanticReviewResponse override = fromMetadata(request.getMetadata());
         if (override != null) {
             return override;
+        }
+
+        if (request.getUserRole() != null && request.getUserRole() != SafetyUserRole.STUDENT) {
+            return pass("semantic-mock-teacher");
         }
 
         String text = join(request.getInputText(), request.getOutputText());

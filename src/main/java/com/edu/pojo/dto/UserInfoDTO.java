@@ -19,6 +19,7 @@ public class UserInfoDTO {
     private Long userId;
     private String username;
     private String realName;
+    private String grade;
     private String roleCode;
     private String roleName;
 }

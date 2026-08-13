@@ -272,12 +272,13 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
         }
 
         SemanticReviewResponse semanticReview = evaluateSemantics(request, inputText, outputText, metadata);
-        hits.addAll(convertSemanticReviewToHits(semanticReview));
+        hits.addAll(convertSemanticReviewToHits(semanticReview, request));
 
         EvidenceResult evidenceResult = evaluateEvidence(request, inputText, outputText, metadata);
         hits.addAll(analyzeEvidenceRisk(evidenceResult, request));
 
         List<RuleHit> mergedHits = deduplicateHits(hits);
+        mergedHits = filterTeacherCheatingHits(request, mergedHits);
         mergedHits.sort(primaryHitComparator().reversed());
 
         RuleHit primaryHit = mergedHits.isEmpty() ? null : mergedHits.get(0);
@@ -337,7 +338,7 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
     private List<RuleHit> analyzeText(String text, String source, SafetyGatewayRequest request) {
         List<RuleHit> hits = new ArrayList<>();
         hits.addAll(analyzePrivacy(text, source));
-        hits.addAll(analyzeCheating(text, source, request.getGradeLevel()));
+        hits.addAll(analyzeCheating(text, source, request));
         hits.addAll(analyzeAgeInappropriate(text, source, request.getGradeLevel()));
         hits.addAll(analyzePromptAttack(text, source));
         return hits;
@@ -383,7 +384,10 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
         ));
     }
 
-    private List<RuleHit> analyzeCheating(String text, String source, SafetyGradeLevel gradeLevel) {
+    private List<RuleHit> analyzeCheating(String text, String source, SafetyGatewayRequest request) {
+        if (request.getUserRole() != SafetyUserRole.STUDENT) {
+            return List.of();
+        }
         if (isLearningSupportRequest(text)) {
             return List.of();
         }
@@ -486,7 +490,8 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
                 .build();
     }
 
-    private List<RuleHit> convertSemanticReviewToHits(SemanticReviewResponse response) {
+    private List<RuleHit> convertSemanticReviewToHits(SemanticReviewResponse response,
+                                                      SafetyGatewayRequest request) {
         if (response == null || response.getDecision() == SafetyDecision.PASS) {
             return List.of();
         }
@@ -494,6 +499,14 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
         List<SafetyRiskType> riskTypes = response.getRiskTypes();
         if (riskTypes == null || riskTypes.isEmpty()) {
             riskTypes = List.of(inferRiskTypeFromSemanticReason(response.getReason()));
+        }
+        if (request != null && request.getUserRole() != SafetyUserRole.STUDENT) {
+            riskTypes = riskTypes.stream()
+                    .filter(type -> type != SafetyRiskType.CHEATING)
+                    .toList();
+        }
+        if (riskTypes.isEmpty()) {
+            return List.of();
         }
 
         List<RuleHit> hits = new ArrayList<>();
@@ -753,6 +766,15 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
             merged.merge(hit.riskType(), hit, this::strongerHit);
         }
         return new ArrayList<>(merged.values());
+    }
+
+    private List<RuleHit> filterTeacherCheatingHits(SafetyGatewayRequest request, List<RuleHit> hits) {
+        if (request == null || request.getUserRole() == SafetyUserRole.STUDENT || hits == null || hits.isEmpty()) {
+            return hits;
+        }
+        return hits.stream()
+                .filter(hit -> hit.riskType() != SafetyRiskType.CHEATING)
+                .toList();
     }
 
     private RuleHit strongerHit(RuleHit first, RuleHit second) {

@@ -51,6 +51,8 @@ public interface RagService {
 
     Flux<ServerSentEvent<RagChatMessageVO>> chat(RagChatRequest request);
 
+    Flux<ServerSentEvent<RagChatMessageVO>> chatForReviewedRequest(Long userId, RagChatRequest request, Long reviewRecordId);
+
     String prepareSpeechText(String content);
 
     boolean existsChatImage(String objectName);

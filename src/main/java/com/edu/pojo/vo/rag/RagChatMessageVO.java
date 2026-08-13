@@ -33,4 +33,6 @@ public class RagChatMessageVO {
     private List<RagChatDocRefVO> docRefInfo;
 
     private String createTime;
+
+    private Long reviewRecordId;
 }

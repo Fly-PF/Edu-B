@@ -10,6 +10,7 @@ import com.edu.pojo.enums.safety.SafetyScene;
 import com.edu.pojo.enums.safety.SafetySourceModule;
 import com.edu.pojo.enums.safety.SafetyUserRole;
 import com.edu.util.SecurityUtil;
+import com.edu.util.SafetyGradeLevelResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -73,6 +74,13 @@ public class SafetyGatewaySupport {
     private SafetyGradeLevel resolveGradeLevel(SafetyGradeLevel fallback) {
         if (fallback != null) {
             return fallback;
+        }
+        UserInfoDTO user = SecurityUtil.getLoginUser();
+        if (user != null) {
+            SafetyGradeLevel gradeLevel = SafetyGradeLevelResolver.resolve(user.getGrade());
+            if (gradeLevel != null) {
+                return gradeLevel;
+            }
         }
         SafetyUserRole userRole = resolveUserRole();
         if (userRole == SafetyUserRole.TEACHER || userRole == SafetyUserRole.ADMIN) {

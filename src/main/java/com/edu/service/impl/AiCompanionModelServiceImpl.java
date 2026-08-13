@@ -123,9 +123,10 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
     private AIModelProperties.Model model() { return config().getChatModel(); }
 
     private String buildSystemPrompt(AiCompanionContextVO context) {
-        return "你是 Edu-F 教育平台的课程智能学伴。请使用简体中文，先给结论，再用 2 到 4 条说明解释。"
+        return "你是 Edu-F 教育平台的学生端智能学伴。请使用简体中文，先给结论，再用 2 到 4 条说明解释。"
                 + "优先依据给定课程上下文回答；资料不足时明确说资料不足，不要编造课程内容或引用。"
-                + "不要代替学生完成作业或实验，应给出思路、步骤、检查方法，并鼓励学生自己完成。"
+                + "对于作业、练习、考试类问题，不要直接给出用户原题的最终答案；应优先提供类似题目、解题思路、参考答案框架和易错点。"
+                + "如果用户已经给出自己的思路，要在此基础上继续补全，而不是替他直接写完整答案。"
                 + "严格遵守“回答依据和格式”要求。\n"
                 + "课程：" + safe(context.getCourseTitle()) + "\n"
                 + "课程简介：" + safe(context.getCourseIntro()) + "\n"
@@ -145,13 +146,19 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             String excerpt = material.content().length() > 280
                     ? material.content().substring(0, 280) + "…"
                     : material.content();
-            return "本题答案来自课程：“" + material.resourceName() + "”第" + material.pageNumber() + "页。\n\n"
-                    + excerpt + "\n\n解释：这段资料与“" + question + "”直接相关。你可以结合它继续完成自己的学习记录。";
+            return "我找到了与这个问题相关的课程资料。\n\n"
+                    + "相似题参考：可将当前问题改写为“" + question + "”的变体后再练一次。\n\n"
+                    + "参考资料：课程“" + material.resourceName() + "”第" + material.pageNumber() + "页。\n"
+                    + excerpt + "\n\n"
+                    + "解题建议：先写出已知条件、关键概念和步骤，再根据资料补全答案框架。";
         }
         if (context.getWebSources() != null && !context.getWebSources().isEmpty()) {
             AiCompanionWebSource source = context.getWebSources().getFirst();
-            return "本课程教案中暂时没有此问题的答案。\n\n网上资料显示（" + source.title() + "）：\n"
-                    + source.snippet() + "\n\n解释：这是联网资料摘要，不属于本课程教案。建议你再根据课程学习目标核查和理解。";
+            return "本课程教案中暂时没有此问题的直接答案。\n\n"
+                    + "类似题思路：先按照课程目标拆成 2 到 3 个小步骤，再对照资料自己完成。\n\n"
+                    + "参考资料（联网摘要）：" + source.title() + "\n"
+                    + source.snippet() + "\n\n"
+                    + "提示：这不是现成答案，只能作为思路参考。";
         }
         if (question.contains("总结")) {
             return "当前正在学习“" + chapter + "”，对应资源是“" + resource
@@ -222,7 +229,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
 
     private String buildEvidenceInstructions(AiCompanionContextVO context) {
         if (context.getMatchedMaterials() != null && !context.getMatchedMaterials().isEmpty()) {
-            StringBuilder result = new StringBuilder("回答依据和格式：课程资料已命中。系统会自动在你的回答前展示真实的课程资料名称和页码。你只需要直接解释问题，不要自行生成“本题答案来自课程”或“资源名 第X页”等来源文字。\n课程资料如下：\n");
+            StringBuilder result = new StringBuilder("回答依据和格式：课程资料已命中。系统会自动在你的回答前展示真实的课程资料名称和页码。你只需要围绕问题给出类似题、思路、参考答案框架和易错点，不要直接复述成完整标准答案，也不要自行生成“本题答案来自课程”或“资源名 第X页”等来源文字。\n课程资料如下：\n");
             for (AiCompanionMaterialExcerpt material : context.getMatchedMaterials()) {
                 result.append("[资料：")
                         .append(safe(material.resourceName()))
@@ -232,7 +239,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             return result.toString();
         }
         if (context.getWebSources() != null && !context.getWebSources().isEmpty()) {
-            StringBuilder result = new StringBuilder("回答依据和格式：本课程教案没有命中答案。回答第一行必须是“本课程教案中暂时没有此问题的答案。”；第二行必须以“网上资料显示：”开头，再根据以下联网资料解释。必须说明联网资料不属于课程教案。\n联网资料如下：\n");
+            StringBuilder result = new StringBuilder("回答依据和格式：本课程教案没有命中直接答案。回答第一行必须是“本课程教案中暂时没有此问题的直接答案。”；第二行开始请给出类似题、解题思路和参考答案框架，再说明联网资料仅作参考，不属于课程教案。\n联网资料如下：\n");
             for (AiCompanionWebSource source : context.getWebSources()) {
                 result.append("[来源：")
                         .append(source.title()).append(" / ").append(source.url()).append("]\n")
@@ -240,7 +247,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             }
             return result.toString();
         }
-        return "回答依据和格式：课程资料未覆盖当前问题。回答第一行必须是“课程资料未覆盖该问题，下面提供通用学习参考。”；随后给出简明、适龄的通用解释。不得提及联网检索、联网失败或“网上资料显示”。";
+        return "回答依据和格式：课程资料未覆盖当前问题。回答第一行必须是“课程资料未覆盖该问题，下面提供通用学习参考。”；随后给出类似题、解题思路和参考答案框架。不得直接给出原题完整现成答案，也不要提及联网检索、联网失败或“网上资料显示”。";
     }
 
     private String formatEvidenceAnswer(AiCompanionContextVO context, String answer) {

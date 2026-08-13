@@ -56,6 +56,7 @@ public class MailAuthenticationProvider implements AuthenticationProvider {
                 .userId(sysUserPO.getId())
                 .username(sysUserPO.getUsername())
                 .realName(sysUserPO.getRealName())
+                .grade(sysUserPO.getGrade())
                 .roleCode(sysRolePO.getRoleCode())
                 .roleName(sysRolePO.getRoleName())
                 .build();

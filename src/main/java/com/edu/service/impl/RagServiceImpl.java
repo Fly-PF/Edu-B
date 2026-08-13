@@ -470,18 +470,31 @@ public class RagServiceImpl implements RagService {
     @Override
     public Flux<ServerSentEvent<RagChatMessageVO>> chat(RagChatRequest request) {
         UserInfoDTO loginUser = getLoginUser();
+        return chatInternal(loginUser.getUserId(), request);
+    }
+
+    @Override
+    public Flux<ServerSentEvent<RagChatMessageVO>> chatForReviewedRequest(Long userId, RagChatRequest request, Long reviewRecordId) {
+        return chatInternal(userId, request, reviewRecordId);
+    }
+
+    private Flux<ServerSentEvent<RagChatMessageVO>> chatInternal(Long userId, RagChatRequest request) {
+        return chatInternal(userId, request, null);
+    }
+
+    private Flux<ServerSentEvent<RagChatMessageVO>> chatInternal(Long userId, RagChatRequest request, Long reviewRecordId) {
         Long sessionId = request == null ? null : request.getSessionId();
         String message = request == null ? null : request.getMessage();
         String rewriteMessageId = request == null ? null : request.getRewriteMessageId();
-        validateChatRequest(sessionId, message, loginUser.getUserId());
+        validateChatRequest(sessionId, message, userId);
 
         if (StringUtils.hasText(rewriteMessageId)) {
             if (request.getImgFiles() != null && !request.getImgFiles().isEmpty()) {
                 return chatErrorFrame(sessionId, "编辑重发不能修改图片");
             }
-            return streamRewriteChat(loginUser.getUserId(), sessionId, message.trim(), rewriteMessageId.trim());
+            return streamRewriteChat(userId, sessionId, message.trim(), rewriteMessageId.trim(), reviewRecordId);
         }
-        return streamChat(loginUser.getUserId(), sessionId, message.trim(), UUID.randomUUID().toString(), request.getImgFiles());
+        return streamChat(userId, sessionId, message.trim(), UUID.randomUUID().toString(), request.getImgFiles(), reviewRecordId);
     }
 
     @Override
@@ -511,7 +524,7 @@ public class RagServiceImpl implements RagService {
     }
 
     private Flux<ServerSentEvent<RagChatMessageVO>> streamRewriteChat(Long userId, Long sessionId, String message,
-                                                                      String rewriteMessageId) {
+                                                                      String rewriteMessageId, Long reviewRecordId) {
         try {
             List<RagChatMessagePO> messages = ragChatMessageRepository.selectSessionMessages(sessionId);
             RewriteSelection selection = resolveRewriteSelection(messages, rewriteMessageId);
@@ -537,7 +550,7 @@ public class RagServiceImpl implements RagService {
 
             Mono<ServerSentEvent<RagChatMessageVO>> doneFrame = Mono.fromCallable(() -> {
                 RagChatMessageVO frame = new TransactionTemplate(transactionManager).execute(status ->
-                        rewriteChatMessages(selection, baseMessageId, message, answer.toString(), context.docRefs(), qaImgs));
+                        rewriteChatMessages(selection, baseMessageId, message, answer.toString(), context.docRefs(), qaImgs, reviewRecordId));
                 if (frame == null) {
                     throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "娑堟伅淇濆瓨澶辫触");
                 }
@@ -556,7 +569,7 @@ public class RagServiceImpl implements RagService {
     }
 
     private Flux<ServerSentEvent<RagChatMessageVO>> streamChat(Long userId, Long sessionId, String message, String baseMessageId,
-                                                                List<MultipartFile> imgFiles) {
+                                                                List<MultipartFile> imgFiles, Long reviewRecordId) {
         String assistantMessageId = baseMessageId + "-assistant";
         try {
             List<RagChatImageVO> qaImgs = uploadChatImages(userId, imgFiles);
@@ -579,7 +592,7 @@ public class RagServiceImpl implements RagService {
 
             Mono<ServerSentEvent<RagChatMessageVO>> doneFrame = Mono.fromCallable(() -> {
                 RagChatMessageVO frame = new TransactionTemplate(transactionManager).execute(status ->
-                        saveChatMessages(sessionId, baseMessageId, message, answer.toString(), context.docRefs(), qaImgs));
+                        saveChatMessages(sessionId, baseMessageId, message, answer.toString(), context.docRefs(), qaImgs, reviewRecordId));
                 if (frame == null) {
                     throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "消息保存失败");
                 }
@@ -599,7 +612,7 @@ public class RagServiceImpl implements RagService {
 
     @Transactional(rollbackFor = Exception.class)
     public RagChatMessageVO saveChatMessages(Long sessionId, String baseMessageId, String question, String answer,
-                                             List<RagChatDocRefVO> docRefs, List<RagChatImageVO> qaImgs) {
+                                             List<RagChatDocRefVO> docRefs, List<RagChatImageVO> qaImgs, Long reviewRecordId) {
         LocalDateTime now = LocalDateTime.now();
         RagChatMessagePO userMessage = RagChatMessagePO.builder()
                 .sessionId(sessionId)
@@ -620,7 +633,7 @@ public class RagServiceImpl implements RagService {
                 .messageId(baseMessageId + "-assistant")
                 .role("assistant")
                 .content(answer)
-                .metadata(toDocRefInfoMetadata(docRefs))
+                .metadata(toAssistantMetadata(docRefs, reviewRecordId))
                 .docRefCount(docRefs.size())
                 .createTime(now)
                 .deleted(0)
@@ -904,7 +917,8 @@ public class RagServiceImpl implements RagService {
     private String buildPrompt(String question, String imageText, List<RagChatMessagePO> history,
                                List<RagRepository.RagSearchChunk> chunks) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("你是XP-Edu平台的知识库问答助手，请基于历史对话和检索依据回答用户问题。\n");
+        prompt.append("你是XP-Edu平台学生端的知识库问答助手，请基于历史对话和检索依据回答用户问题。\n");
+        prompt.append("如果问题像作业、练习或考试题，不要直接给出原题的最终答案；应优先给出类似题、解题思路、参考答案框架和易错点。\n");
         prompt.append("如果检索依据不足，请说明依据不足，不要编造。\n\n");
         prompt.append("请使用合法Markdown组织回答，使内容清晰、美观、易于阅读。仅在内容确有需要时使用恰当的标题、列表、表格、加粗、代码块和公式；避免为了排版堆砌标题、重复用户问题或加入无关说明。段落保持简洁，复杂内容优先分点或分步骤表达。\n");
         prompt.append("标题必须独占一行，#号后必须有空格，且标题前后各保留一个空行。段落之间必须保留一个空行；不要将标题、列表、分隔线或公式与正文连续拼接。行间公式必须独占一行，并在前后保留空行；分隔线---也必须独占一行。\n\n");
@@ -973,7 +987,8 @@ public class RagServiceImpl implements RagService {
 
     @Transactional(rollbackFor = Exception.class)
     public RagChatMessageVO rewriteChatMessages(RewriteSelection selection, String baseMessageId, String question,
-                                                String answer, List<RagChatDocRefVO> docRefs, List<RagChatImageVO> qaImgs) {
+                                                String answer, List<RagChatDocRefVO> docRefs, List<RagChatImageVO> qaImgs,
+                                                Long reviewRecordId) {
         LocalDateTime now = LocalDateTime.now();
         List<Long> tailMessageIds = selection.tailMessages().stream()
                 .map(RagChatMessagePO::getId)
@@ -1000,7 +1015,7 @@ public class RagServiceImpl implements RagService {
                 .messageId(baseMessageId + "-assistant")
                 .role("assistant")
                 .content(answer)
-                .metadata(toDocRefInfoMetadata(docRefs))
+                .metadata(toAssistantMetadata(docRefs, reviewRecordId))
                 .docRefCount(docRefs.size())
                 .createTime(now)
                 .deleted(0)
@@ -1080,8 +1095,15 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private String toDocRefInfoMetadata(List<RagChatDocRefVO> docRefs) {
-        return toJson(Map.of("docRefInfo", toJson(docRefs)));
+    private String toAssistantMetadata(List<RagChatDocRefVO> docRefs, Long reviewRecordId) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (docRefs != null && !docRefs.isEmpty()) {
+            metadata.put("docRefInfo", toJson(docRefs));
+        }
+        if (reviewRecordId != null) {
+            metadata.put("reviewRecordId", reviewRecordId);
+        }
+        return metadata.isEmpty() ? null : toJson(metadata);
     }
 
     private String toQaImgMetadata(List<RagChatImageVO> qaImgs) {
@@ -1128,6 +1150,25 @@ public class RagServiceImpl implements RagService {
         }
     }
 
+    private Long parseReviewRecordId(String metadata) {
+        if (!StringUtils.hasText(metadata)) {
+            return null;
+        }
+        try {
+            JsonNode reviewRecordIdNode = objectMapper.readTree(metadata).path("reviewRecordId");
+            if (reviewRecordIdNode.isIntegralNumber()) {
+                return reviewRecordIdNode.longValue();
+            }
+            String reviewRecordId = reviewRecordIdNode.asText("");
+            if (!StringUtils.hasText(reviewRecordId)) {
+                return null;
+            }
+            return Long.parseLong(reviewRecordId.trim());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private RagChatMessageVO toChatMessageVO(RagChatMessagePO message, List<RagChatDocRefVO> docRefs) {
         return RagChatMessageVO.builder()
                 .id(message.getId())
@@ -1138,6 +1179,7 @@ public class RagServiceImpl implements RagService {
                 .metadata(message.getMetadata())
                 .docRefCount(message.getDocRefCount())
                 .docRefInfo(docRefs)
+                .reviewRecordId(parseReviewRecordId(message.getMetadata()))
                 .createTime(formatDateTime(message.getCreateTime()))
                 .build();
     }
