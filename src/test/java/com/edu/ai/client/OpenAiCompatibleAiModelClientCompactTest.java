@@ -145,6 +145,7 @@ class OpenAiCompatibleAiModelClientCompactTest {
         LessonPlanGenerateResponse response = client.generateLessonPlan(lessonPlanRequest());
         JsonNode payload = mapper.readTree(requestBody.get());
         assertEquals("unit-test-lesson-model", payload.path("model").asText());
+        assertEquals(0, payload.path("temperature").decimalValue().compareTo(BigDecimal.ZERO));
         assertEquals("Lesson title", response.getTitle());
         assertEquals(2, response.getTeachingSteps().size());
     }

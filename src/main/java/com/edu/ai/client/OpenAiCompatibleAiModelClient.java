@@ -6,8 +6,10 @@ import com.edu.pojo.dto.teacherai.AiRubricItem;
 import com.edu.pojo.dto.teacherai.GradingDimensionScore;
 import com.edu.pojo.dto.teacherai.GradingGenerateRequest;
 import com.edu.pojo.dto.teacherai.GradingGenerateResponse;
+import com.edu.pojo.dto.teacherai.LessonPlanExercise;
 import com.edu.pojo.dto.teacherai.LessonPlanGenerateRequest;
 import com.edu.pojo.dto.teacherai.LessonPlanGenerateResponse;
+import com.edu.pojo.dto.teacherai.LessonPlanTeachingStep;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,15 +47,18 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
     private static final BigDecimal ONE = BigDecimal.ONE;
     private static final int DEBUG_CONTENT_LIMIT = 1500;
     private static final int GRADING_MAX_TOKENS = 420;
-    private static final int LESSON_PLAN_MAX_TOKENS = 950;
+    private static final int LESSON_PLAN_MAX_TOKENS = 900;
     private static final BigDecimal GRADING_TEMPERATURE = BigDecimal.ZERO;
-    private static final BigDecimal LESSON_PLAN_TEMPERATURE = new BigDecimal("0.1");
+    private static final BigDecimal LESSON_PLAN_TEMPERATURE = BigDecimal.ZERO;
     private static final int MAX_GRADING_FEEDBACK_ITEMS = 2;
     private static final int GRADING_CACHE_MAX_ENTRIES = 100;
+    private static final int LESSON_PLAN_CACHE_MAX_ENTRIES = 100;
     private static final Duration GRADING_CACHE_TTL = Duration.ofMinutes(30);
+    private static final Duration LESSON_PLAN_CACHE_TTL = Duration.ofMinutes(30);
     private static final int DEFAULT_GRADING_TIMEOUT_MS = 30000;
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 3000;
     private static final String GRADING_PROMPT_VERSION = "grading-v4-compact-cache";
+    private static final String LESSON_PLAN_PROMPT_VERSION = "lesson-plan-v2-compact-cache";
     private static final String GRADING_OPERATION = "grading";
     private static final String LESSON_PLAN_OPERATION = "lesson-plan";
 
@@ -65,6 +70,12 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, CachedGradingResponse> eldest) {
             return size() > GRADING_CACHE_MAX_ENTRIES;
+        }
+    };
+    private final Map<String, CachedLessonPlanResponse> lessonPlanCache = new LinkedHashMap<>(128, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, CachedLessonPlanResponse> eldest) {
+            return size() > LESSON_PLAN_CACHE_MAX_ENTRIES;
         }
     };
 
@@ -81,17 +92,30 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
 
     @Override
     public LessonPlanGenerateResponse generateLessonPlan(LessonPlanGenerateRequest request) {
+        String model = resolveLessonModel();
+        String cacheKey = buildLessonPlanCacheKey(request, model);
+        CachedLessonPlanResponse cached = lookupCachedLessonPlanResponse(cacheKey);
+        if (cached != null) {
+            log.info("lesson-plan ai cache hit, provider={}, model={}, maxTokens={}", resolveProvider(), model, LESSON_PLAN_MAX_TOKENS);
+            return copyLessonPlanResponse(cached.response());
+        }
+        log.info("lesson-plan ai cache miss, provider={}, model={}, maxTokens={}", resolveProvider(), model, LESSON_PLAN_MAX_TOKENS);
         CompletionResult result = requestCompletion(
                 LESSON_PLAN_OPERATION,
-                resolveLessonModel(),
-                "",
-                buildLessonPlanPrompt(request),
+                model,
+                lessonPlanSystemPrompt(),
+                buildLessonPlanPromptV2(request),
                 LESSON_PLAN_MAX_TOKENS,
                 LESSON_PLAN_TEMPERATURE,
                 null
         );
         try {
-            return objectMapper.treeToValue(result.content(), LessonPlanGenerateResponse.class);
+            LessonPlanGenerateResponse response = objectMapper.treeToValue(result.content(), LessonPlanGenerateResponse.class);
+            normalizeLessonPlanResponse(response);
+            if (isLessonPlanCacheable(request, response)) {
+                storeCachedLessonPlanResponse(cacheKey, response);
+            }
+            return response;
         } catch (JsonProcessingException exception) {
             throw invalidModelResponse("教案 JSON 结构无法解析", exception);
         }
@@ -157,6 +181,43 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
                 + "exercises 每项包含 question、type、referenceAnswer、difficulty；"
                 + "rubric 每项包含 criterion、description、maxScore。"
                 + "teachingSteps 的 durationMinutes 之和必须等于 durationMinutes。";
+    }
+
+    private String buildLessonPlanPromptV2(LessonPlanGenerateRequest request) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("courseId", request.getCourseId());
+        input.put("topic", request.getTopic());
+        input.put("grade", request.getGrade());
+        input.put("durationMinutes", request.getDurationMinutes());
+        input.put("objectives", request.getObjectives());
+        input.put("difficulty", request.getDifficulty());
+        input.put("requirements", request.getRequirements());
+        return """
+                Generate one complete lesson plan from this JSON input.
+                Input:
+                """
+                + writeJson(input)
+                + """
+
+                Return exactly one JSON object. No markdown. No explanation. No extra fields.
+                Required non-empty fields: title, objectives, keyPoints, difficultPoints, teachingSteps, exercises, rubric.
+                Optional arrays: preparations, activities, notes.
+                teachingSteps items must include stage, durationMinutes, teacherActivity, studentActivity, purpose.
+                exercises items must include question, type, referenceAnswer, difficulty.
+                rubric items must include criterion, description, maxScore.
+                The sum of teachingSteps.durationMinutes must equal durationMinutes.
+                Keep the wording concise and classroom-ready.
+                """;
+    }
+
+    String lessonPlanSystemPrompt() {
+        return """
+                You are a teacher lesson-plan assistant.
+                Output valid JSON only.
+                Keep the lesson plan complete, concise, and directly usable.
+                Required fields must be fully populated.
+                Do not add markdown or explanatory text.
+                """;
     }
 
     String gradingSystemPrompt() {
@@ -406,6 +467,142 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
         return objectMapper.convertValue(response, GradingGenerateResponse.class);
     }
 
+    private String buildLessonPlanCacheKey(LessonPlanGenerateRequest request, String model) {
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        normalized.put("promptVersion", LESSON_PLAN_PROMPT_VERSION);
+        normalized.put("model", model);
+        normalized.put("maxTokens", LESSON_PLAN_MAX_TOKENS);
+        normalized.put("courseId", request.getCourseId());
+        normalized.put("topic", normalizeText(request.getTopic()));
+        normalized.put("grade", normalizeText(request.getGrade()));
+        normalized.put("durationMinutes", request.getDurationMinutes());
+        normalized.put("objectives", normalizeText(request.getObjectives()));
+        normalized.put("difficulty", normalizeText(request.getDifficulty()));
+        normalized.put("requirements", normalizeText(request.getRequirements()));
+        return sha256(writeJson(normalized));
+    }
+
+    private synchronized CachedLessonPlanResponse lookupCachedLessonPlanResponse(String key) {
+        CachedLessonPlanResponse cached = lessonPlanCache.get(key);
+        if (cached == null) {
+            return null;
+        }
+        long ageMillis = Duration.between(cached.cachedAt(), Instant.now()).toMillis();
+        if (ageMillis > LESSON_PLAN_CACHE_TTL.toMillis()) {
+            lessonPlanCache.remove(key);
+            return null;
+        }
+        return cached;
+    }
+
+    private synchronized void storeCachedLessonPlanResponse(String key, LessonPlanGenerateResponse response) {
+        lessonPlanCache.put(key, new CachedLessonPlanResponse(Instant.now(), copyLessonPlanResponse(response)));
+    }
+
+    private LessonPlanGenerateResponse copyLessonPlanResponse(LessonPlanGenerateResponse response) {
+        return objectMapper.convertValue(response, LessonPlanGenerateResponse.class);
+    }
+
+    private void normalizeLessonPlanResponse(LessonPlanGenerateResponse response) {
+        if (response == null) {
+            return;
+        }
+        response.setPreparations(defaultList(response.getPreparations()));
+        response.setNotes(defaultList(response.getNotes()));
+        if (response.getActivities() == null || response.getActivities().isEmpty()) {
+            response.setActivities(buildActivitiesFromTeachingSteps(response.getTeachingSteps()));
+        } else {
+            response.setActivities(defaultList(response.getActivities()));
+        }
+    }
+
+    private boolean isLessonPlanCacheable(LessonPlanGenerateRequest request, LessonPlanGenerateResponse response) {
+        if (response == null || !StringUtils.hasText(response.getTitle())) {
+            return false;
+        }
+        if (response.getTeachingSteps() == null || response.getTeachingSteps().isEmpty()) {
+            return false;
+        }
+        if (response.getObjectives() == null || response.getObjectives().isEmpty()
+                || response.getKeyPoints() == null || response.getKeyPoints().isEmpty()
+                || response.getDifficultPoints() == null || response.getDifficultPoints().isEmpty()
+                || response.getExercises() == null || response.getExercises().isEmpty()
+                || response.getRubric() == null || response.getRubric().isEmpty()) {
+            return false;
+        }
+
+        int durationTotal = 0;
+        for (LessonPlanTeachingStep step : response.getTeachingSteps()) {
+            if (step == null
+                    || !StringUtils.hasText(step.getStage())
+                    || step.getDurationMinutes() == null
+                    || step.getDurationMinutes() <= 0
+                    || !StringUtils.hasText(step.getTeacherActivity())
+                    || !StringUtils.hasText(step.getStudentActivity())
+                    || !StringUtils.hasText(step.getPurpose())) {
+                return false;
+            }
+            durationTotal += step.getDurationMinutes();
+        }
+        if (!Objects.equals(durationTotal, request.getDurationMinutes())) {
+            return false;
+        }
+
+        for (LessonPlanExercise exercise : response.getExercises()) {
+            if (exercise == null
+                    || !StringUtils.hasText(exercise.getQuestion())
+                    || !StringUtils.hasText(exercise.getType())
+                    || !StringUtils.hasText(exercise.getReferenceAnswer())
+                    || !StringUtils.hasText(exercise.getDifficulty())) {
+                return false;
+            }
+        }
+
+        for (AiRubricItem rubricItem : response.getRubric()) {
+            if (rubricItem == null
+                    || !StringUtils.hasText(rubricItem.getCriterion())
+                    || !StringUtils.hasText(rubricItem.getDescription())
+                    || rubricItem.getMaxScore() == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<String> buildActivitiesFromTeachingSteps(List<LessonPlanTeachingStep> teachingSteps) {
+        if (teachingSteps == null || teachingSteps.isEmpty()) {
+            return List.of();
+        }
+        List<String> activities = new ArrayList<>();
+        for (LessonPlanTeachingStep step : teachingSteps) {
+            if (step == null) {
+                continue;
+            }
+            String stage = normalizeText(step.getStage());
+            String studentActivity = normalizeText(step.getStudentActivity());
+            String purpose = normalizeText(step.getPurpose());
+            if (!StringUtils.hasText(stage) || !StringUtils.hasText(studentActivity)) {
+                continue;
+            }
+            /*
+            StringBuilder activity = new StringBuilder(stage).append("：").append(studentActivity);
+            if (StringUtils.hasText(purpose)) {
+                activity.append("；目标：").append(purpose);
+            }
+            */
+            StringBuilder activity = new StringBuilder(stage).append(": ").append(studentActivity);
+            if (StringUtils.hasText(purpose)) {
+                activity.append("; purpose: ").append(purpose);
+            }
+            activities.add(activity.toString());
+        }
+        return activities;
+    }
+
+    private List<String> defaultList(List<String> values) {
+        return values == null ? List.of() : List.copyOf(values);
+    }
+
     private String normalizeText(String value) {
         return value == null ? null : value.trim().replaceAll("\\s+", " ");
     }
@@ -586,6 +783,9 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
     }
 
     private record CachedGradingResponse(Instant cachedAt, GradingGenerateResponse response) {
+    }
+
+    private record CachedLessonPlanResponse(Instant cachedAt, LessonPlanGenerateResponse response) {
     }
 
     private CompletionResult requestCompletion(String systemPrompt, String userPrompt, int maxTokens, BigDecimal temperature) {

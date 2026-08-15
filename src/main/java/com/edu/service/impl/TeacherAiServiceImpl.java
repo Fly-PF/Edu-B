@@ -28,6 +28,7 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         long startedAt = System.nanoTime();
         LessonPlanGenerateResponse response = aiModelClient.generateLessonPlan(request);
         long validationStartedAt = System.nanoTime();
+        normalizeLessonPlanResponse(response);
         validateLessonPlanResponse(request, response);
         log.info("lesson-plan ai service validation cost={} ms", elapsedMillis(validationStartedAt));
         log.info("lesson-plan ai total cost={} ms", elapsedMillis(startedAt));
@@ -81,6 +82,70 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         if (totalDuration != request.getDurationMinutes()) {
             throw invalidAiResponse("教学步骤时长之和与课时不一致");
         }
+    }
+
+    private void normalizeLessonPlanResponse(LessonPlanGenerateResponse response) {
+        if (response == null) {
+            return;
+        }
+        if (response.getActivities() == null || response.getActivities().isEmpty()) {
+            response.setActivities(buildActivitiesFromTeachingSteps(response));
+        }
+        if (response.getPreparations() == null || response.getPreparations().isEmpty()) {
+            response.setPreparations(buildPreparations());
+        }
+        if (response.getNotes() == null || response.getNotes().isEmpty()) {
+            response.setNotes(buildNotes(response));
+        }
+    }
+
+    private List<String> buildActivitiesFromTeachingSteps(LessonPlanGenerateResponse response) {
+        if (response.getTeachingSteps() == null || response.getTeachingSteps().isEmpty()) {
+            return List.of();
+        }
+        return response.getTeachingSteps().stream()
+                .filter(step -> step != null
+                        && StringUtils.hasText(step.getStage())
+                        && StringUtils.hasText(step.getStudentActivity()))
+                .map(step -> {
+                    /*
+                    String activity = step.getStage().trim() + "：" + step.getStudentActivity().trim();
+                    if (StringUtils.hasText(step.getPurpose())) {
+                        return activity + "；目标：" + step.getPurpose().trim();
+                    }
+                    return activity;
+                    */
+                    String activity = step.getStage().trim() + ": " + step.getStudentActivity().trim();
+                    if (StringUtils.hasText(step.getPurpose())) {
+                        return activity + "; purpose: " + step.getPurpose().trim();
+                    }
+                    return activity;
+                })
+                .toList();
+    }
+
+    private List<String> buildPreparations() {
+        /*
+        return List.of("教师准备与教学目标对应的讲解材料和课堂任务单。");
+    }
+
+        */
+        return List.of("Prepare lesson materials and task sheets aligned with the teaching objectives.");
+    }
+
+    private List<String> buildNotes(LessonPlanGenerateResponse response) {
+        /*
+        if (response.getDifficultPoints() == null || response.getDifficultPoints().isEmpty()) {
+            return List.of("课堂中根据学生反馈及时调整讲解节奏。");
+        }
+        return List.of("围绕教学难点及时观察学生反馈，并进行针对性追问。");
+    }
+
+        */
+        if (response.getDifficultPoints() == null || response.getDifficultPoints().isEmpty()) {
+            return List.of("Adjust the teaching pace in time based on student feedback.");
+        }
+        return List.of("Observe feedback around the difficult points and add targeted follow-up questions.");
     }
 
     private void validateGradingResponse(

@@ -9,6 +9,10 @@ import com.edu.pojo.dto.teacherai.AiRubricItem;
 import com.edu.pojo.dto.teacherai.GradingDimensionScore;
 import com.edu.pojo.dto.teacherai.GradingGenerateRequest;
 import com.edu.pojo.dto.teacherai.GradingGenerateResponse;
+import com.edu.pojo.dto.teacherai.LessonPlanExercise;
+import com.edu.pojo.dto.teacherai.LessonPlanGenerateRequest;
+import com.edu.pojo.dto.teacherai.LessonPlanGenerateResponse;
+import com.edu.pojo.dto.teacherai.LessonPlanTeachingStep;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -416,6 +420,89 @@ class OpenAiCompatibleAiModelClientStabilityTest {
         assertEquals(4, requestCount.get());
     }
 
+    @Test
+    void lessonPlanCacheHitSkipsSecondModelCall() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        startServer(exchange -> {
+            requestCount.incrementAndGet();
+            writeCompletion(exchange, mapper.writeValueAsString(validLessonPlanResponse()));
+        });
+        client = liveClient(UUID.randomUUID().toString());
+
+        LessonPlanGenerateResponse first = client.generateLessonPlan(lessonPlanRequest());
+        LessonPlanGenerateResponse second = client.generateLessonPlan(lessonPlanRequest());
+
+        assertEquals(1, requestCount.get());
+        assertEquals(first.getTitle(), second.getTitle());
+        assertEquals(first.getTeachingSteps().size(), second.getTeachingSteps().size());
+    }
+
+    @Test
+    void lessonPlanCacheMissWhenRequestChanges() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        startServer(exchange -> {
+            requestCount.incrementAndGet();
+            writeCompletion(exchange, mapper.writeValueAsString(validLessonPlanResponse()));
+        });
+        client = liveClient(UUID.randomUUID().toString());
+
+        LessonPlanGenerateRequest first = lessonPlanRequest();
+        LessonPlanGenerateRequest second = lessonPlanRequest();
+        second.setRequirements("A different teaching suggestion.");
+
+        client.generateLessonPlan(first);
+        client.generateLessonPlan(second);
+
+        assertEquals(2, requestCount.get());
+    }
+
+    @Test
+    void lessonPlanDoesNotCache503Responses() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        startServer(exchange -> {
+            requestCount.incrementAndGet();
+            writeRawResponse(exchange, 503, "{\"error\":{\"message\":\"service unavailable\"}}");
+        });
+        client = liveClient(UUID.randomUUID().toString());
+
+        assertThrows(UserErrorException.class, () -> client.generateLessonPlan(lessonPlanRequest()));
+        assertThrows(UserErrorException.class, () -> client.generateLessonPlan(lessonPlanRequest()));
+
+        assertEquals(2, requestCount.get());
+    }
+
+    @Test
+    void lessonPlanDoesNotCache429Responses() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        startServer(exchange -> {
+            requestCount.incrementAndGet();
+            writeRawResponse(exchange, 429, "{\"error\":{\"message\":\"rate limit\"}}");
+        });
+        client = liveClient(UUID.randomUUID().toString());
+
+        assertThrows(UserErrorException.class, () -> client.generateLessonPlan(lessonPlanRequest()));
+        assertThrows(UserErrorException.class, () -> client.generateLessonPlan(lessonPlanRequest()));
+
+        assertEquals(2, requestCount.get());
+    }
+
+    @Test
+    void lessonPlanDoesNotCacheInvalidResponses() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
+        startServer(exchange -> {
+            requestCount.incrementAndGet();
+            writeCompletion(exchange, "{\"title\":\"Only title\"}");
+        });
+        client = liveClient(UUID.randomUUID().toString());
+
+        LessonPlanGenerateResponse first = client.generateLessonPlan(lessonPlanRequest());
+        LessonPlanGenerateResponse second = client.generateLessonPlan(lessonPlanRequest());
+
+        assertEquals(2, requestCount.get());
+        assertEquals("Only title", first.getTitle());
+        assertEquals("Only title", second.getTitle());
+    }
+
     private void startServer(HttpHandler handler) throws Exception {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         server.createContext("/v1/chat/completions", exchange -> {
@@ -478,6 +565,55 @@ class OpenAiCompatibleAiModelClientStabilityTest {
                         .lessonModel("unit-test-lesson-model")
                         .build()
         );
+    }
+
+    private LessonPlanGenerateRequest lessonPlanRequest() {
+        LessonPlanGenerateRequest request = new LessonPlanGenerateRequest();
+        request.setCourseId(1L);
+        request.setTopic("Python basics");
+        request.setGrade("Grade 7");
+        request.setDurationMinutes(45);
+        request.setObjectives("Teach the basics.");
+        request.setDifficulty("Medium");
+        request.setRequirements("Keep it practical.");
+        return request;
+    }
+
+    private LessonPlanGenerateResponse validLessonPlanResponse() {
+        return LessonPlanGenerateResponse.builder()
+                .title("Lesson title")
+                .objectives(List.of("Objective 1"))
+                .keyPoints(List.of("Key point 1"))
+                .difficultPoints(List.of("Difficult point 1"))
+                .preparations(List.of("Prepare 1"))
+                .teachingSteps(List.of(
+                        LessonPlanTeachingStep.builder()
+                                .stage("Warm-up")
+                                .durationMinutes(15)
+                                .teacherActivity("Explain")
+                                .studentActivity("Listen")
+                                .purpose("Introduce topic")
+                                .build(),
+                        LessonPlanTeachingStep.builder()
+                                .stage("Practice")
+                                .durationMinutes(30)
+                                .teacherActivity("Guide")
+                                .studentActivity("Practice")
+                                .purpose("Reinforce")
+                                .build()
+                ))
+                .activities(List.of("Activity 1"))
+                .exercises(List.of(
+                        LessonPlanExercise.builder()
+                                .question("What is Python?")
+                                .type("Short answer")
+                                .referenceAnswer("A programming language.")
+                                .difficulty("Easy")
+                                .build()
+                ))
+                .rubric(List.of(rubric("Accuracy", "Be correct.", "5.0")))
+                .notes(List.of("Note 1"))
+                .build();
     }
 
     private GradingGenerateRequest gradingRequest() {
