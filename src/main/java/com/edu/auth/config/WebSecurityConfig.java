@@ -95,7 +95,7 @@ public class WebSecurityConfig {
     public SecurityFilterChain loginFilterChain(HttpSecurity http) {
         commonHttpSetting(http);
 
-        http.securityMatcher("/user/login/**")
+        http.securityMatcher("/api/user/login/**")
                 .authorizeHttpRequests(authorize -> authorize
                         .anyRequest().authenticated()
                 );

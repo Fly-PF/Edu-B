@@ -2,24 +2,24 @@ package com.edu.util;
 
 import com.edu.common.properties.AIModelProperties;
 import com.edu.exception.BaseException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.util.MimeTypeUtils;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 
 @Component
@@ -50,7 +50,6 @@ public class ImageTextExtractUtil {
             """;
 
     private final AIModelProperties aiModelProperties;
-    private final ObjectMapper objectMapper;
 
     public String extract(InputStream inputStream) {
         return extract(inputStream, true);
@@ -101,84 +100,28 @@ public class ImageTextExtractUtil {
 
     private String requestMarkdown(AIModelProperties.Model model, byte[] imageBytes, String contentType) {
         try {
-            ObjectNode payload = objectMapper.createObjectNode();
-            payload.put("model", model.getModelName());
-            payload.put("temperature", 0.0);
-            payload.put("max_tokens", 4000);
+            OpenAiChatModel chatModel = OpenAiChatModel.builder()
+                    .options(OpenAiChatOptions.builder()
+                            .apiKey(model.getApiKey())
+                            .baseUrl(model.getBaseUrl())
+                            .model(model.getModelName())
+                            .temperature(0.0)
+                            .maxTokens(4000)
+                            .build())
+                    .observationRegistry(ObservationRegistry.NOOP)
+                    .build();
 
-            ArrayNode messages = payload.putArray("messages");
-            ObjectNode message = messages.addObject().put("role", "user");
-            ArrayNode content = message.putArray("content");
-            content.addObject().put("type", "text").put("text", PROMPT);
-            content.addObject()
-                    .put("type", "image_url")
-                    .putObject("image_url")
-                    .put("url", "data:" + contentType + ";base64," + Base64.getEncoder().encodeToString(imageBytes));
+            Media media = new Media(MimeTypeUtils.parseMimeType(contentType), new ByteArrayResource(imageBytes));
+            Prompt prompt = new Prompt(UserMessage.builder().text(PROMPT).media(List.of(media)).build());
 
-            URI endpoint = URI.create(model.getBaseUrl());
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(endpoint)
-                    .timeout(Duration.ofSeconds(90))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)));
-            if (StringUtils.hasText(model.getApiKey())) {
-                requestBuilder.header("Authorization", "Bearer " + model.getApiKey());
-            }
-
-            HttpResponse<String> response = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(20))
-                    .build()
-                    .send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.error("Image OCR provider returned HTTP {} for model {}: {}", response.statusCode(),
-                        model.getModelName(), abbreviate(response.body()));
-                throw new BaseException(HttpStatus.BAD_GATEWAY,
-                        "图片识别接口返回 HTTP " + response.statusCode() + "：" + providerError(response.body()));
-            }
-
-            JsonNode root = objectMapper.readTree(response.body());
-            JsonNode result = root.path("choices").path(0).path("message").path("content");
-            if (result.isTextual()) {
-                return result.asText().trim();
-            }
-            if (result.isArray()) {
-                StringBuilder text = new StringBuilder();
-                result.forEach(part -> {
-                    if (part.path("type").asText().equals("text") && StringUtils.hasText(part.path("text").asText())) {
-                        if (!text.isEmpty()) text.append(System.lineSeparator());
-                        text.append(part.path("text").asText());
-                    }
-                });
-                return text.toString().trim();
-            }
-            throw new IllegalStateException("AI image recognition returned no text");
-        } catch (BaseException ex) {
-            throw ex;
+            ChatResponse response = chatModel.call(prompt);
+            return response == null || response.getResult() == null
+                    ? null
+                    : response.getResult().getOutput().getText();
         } catch (Exception ex) {
             log.error("Image OCR request failed for model {}", model.getModelName(), ex);
-            throw new BaseException(HttpStatus.BAD_GATEWAY,
-                    "图片内容识别服务调用失败：" + abbreviate(ex.getMessage()));
+            throw new BaseException(HttpStatus.BAD_GATEWAY, "图片内容识别服务调用失败：" + ex.getMessage());
         }
-    }
-
-    private String providerError(String body) {
-        try {
-            JsonNode root = objectMapper.readTree(body);
-            JsonNode error = root.path("error");
-            if (error.isObject()) {
-                String message = error.path("message").asText();
-                if (StringUtils.hasText(message)) return message;
-            }
-            String message = root.path("message").asText();
-            return StringUtils.hasText(message) ? message : abbreviate(body);
-        } catch (Exception ignored) {
-            return abbreviate(body);
-        }
-    }
-
-    private String abbreviate(String value) {
-        if (value == null) return "";
-        String normalized = value.replaceAll("\\s+", " ").trim();
-        return normalized.length() <= 500 ? normalized : normalized.substring(0, 500);
     }
 
     private String detectImageContentType(byte[] imageBytes) {

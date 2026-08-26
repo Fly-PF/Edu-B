@@ -6,7 +6,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @SpringBootTest
-@ActiveProfiles("dev")
+@ActiveProfiles("prod")
 class EduBApplicationTests {
 
     @Test

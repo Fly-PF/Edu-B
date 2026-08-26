@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping
+@RequestMapping("/api")
 @Tag(name = "认证管理")
 public class AuthController {
     private static final int USER_TYPE_STUDENT = 1;
@@ -65,7 +65,7 @@ public class AuthController {
     }
 
     @Operation(summary = "学生注册接口")
-    @PostMapping("/api/user/register/student")
+    @PostMapping("/user/register/student")
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> registerStudent(@Valid @RequestBody StudentRegisterReq request) {
         if (!request.getPassword().equals(request.getConfirmPassword())) {

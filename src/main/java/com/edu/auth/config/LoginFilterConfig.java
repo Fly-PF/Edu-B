@@ -32,7 +32,7 @@ public class LoginFilterConfig {
                 request -> {
                     String requestURI = request.getRequestURI();
                     String method = request.getMethod();
-                    return method.equals("POST") && requestURI.equals("/user/login/username");
+                    return method.equals("POST") && requestURI.equals("/api/user/login/username");
                 },
                 providerManager,
                 loginSuccessHandler,
@@ -48,7 +48,7 @@ public class LoginFilterConfig {
                 request -> {
                     String requestURI = request.getRequestURI();
                     String method = request.getMethod();
-                    return method.equals("POST") && requestURI.equals("/user/login/mail");
+                    return method.equals("POST") && requestURI.equals("/api/user/login/mail");
                 },
                 providerManager,
                 loginSuccessHandler,
