@@ -51,21 +51,21 @@ custom:
     teacher-ai:
       chat-model:
         supplier: compatible
-        base-url: http://localhost:11434/v1/chat/completions
-        api-key: ${TEACHER_AI_API_KEY}
+        base-url: https://ws-ax2a1h6argluh7eh.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+        api-key: ${OPENAI_API_KEY}
         model-type: textmodel
-        model-name: qwen2.5:3b
+        model-name: qwen3.7-plus
         timeout: 90000
         max-tokens: 560
     companion:
       enabled: true
       chat-model:
-        supplier: ollama
-        base-url: http://localhost:11434/v1/chat/completions
-        api-key: ${AI_COMPANION_API_KEY}
-        api-key-required: false
+        supplier: compatible
+        base-url: https://ws-ax2a1h6argluh7eh.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions
+        api-key: ${OPENAI_API_KEY}
+        api-key-required: true
         model-type: textmodel
-        model-name: qwen2.5:3b
+        model-name: qwen3.7-plus
         timeout: 90000
         max-tokens: 560
       web-search:

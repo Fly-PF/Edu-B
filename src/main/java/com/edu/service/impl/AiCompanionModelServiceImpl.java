@@ -54,7 +54,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
             log.warn("智能学伴模型回答超时", exception);
             return modelUnavailable(context, "MODEL_TIMEOUT");
         } catch (ConnectException exception) {
-            log.warn("智能学伴无法连接本地模型", exception);
+            log.warn("智能学伴无法连接云端模型", exception);
             return modelUnavailable(context, "MODEL_UNAVAILABLE");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -189,7 +189,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
                 : "你可以先完成当前章节，再继续学习“" + context.getNextChapterTitle() + "”。";
         String content = "MODEL_TIMEOUT".equals(mode)
                 ? "模型回答时间较长，暂时没有生成结果。请稍后重试，或先查看当前章节资料。\n\n" + nextStep
-                : "本地学习模型暂时不可用。请确认 Ollama 已启动后再试；课程资料和学习进度不会受影响。\n\n" + nextStep;
+                : "云端学习模型暂时不可用。请稍后重试；课程资料和学习进度不会受影响。\n\n" + nextStep;
         return new AiCompanionModelResult(
                 content,
                 mode,

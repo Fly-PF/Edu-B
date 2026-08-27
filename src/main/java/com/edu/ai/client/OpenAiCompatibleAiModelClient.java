@@ -94,7 +94,7 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
 
     private JsonNode requestJson(String system, String user, int maxTokens, String model) {
         if (!aiModelProperties.getTeacherAi().isEnabled() || !StringUtils.hasText(teacherModel().getBaseUrl())) {
-            throw new UserErrorException(HttpStatus.SERVICE_UNAVAILABLE, "AI 模型尚未配置，请先启动或配置 Ollama");
+            throw new UserErrorException(HttpStatus.SERVICE_UNAVAILABLE, "AI 模型尚未配置，请检查云端 API 配置");
         }
         try {
             HttpResponse<String> response = send(system, user, maxTokens, true, model);
@@ -110,7 +110,7 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
             throw exception;
         } catch (Exception exception) {
             log.warn("教师 AI 模型调用失败", exception);
-            throw new UserErrorException(HttpStatus.SERVICE_UNAVAILABLE, "AI 模型暂时不可用，请确认 Ollama 正在运行");
+            throw new UserErrorException(HttpStatus.SERVICE_UNAVAILABLE, "AI 模型暂时不可用，请检查云端 API 配置");
         }
     }
 
