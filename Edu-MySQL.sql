@@ -609,7 +609,7 @@ CREATE TABLE rag_knowledge_base
     kb_cover    VARCHAR(255) NOT NULL COMMENT '封面图链接URL',
     description TEXT COMMENT '库说明',
     kb_type     TINYINT      NOT NULL COMMENT '1其他 2课程 3教材 4政策',
-    course_id   BIGINT       NOT NULL DEFAULT -1 COMMENT '知识库关联的课程id',
+    course_id   BIGINT       NULL COMMENT '关联课程ID',
     is_public   TINYINT  DEFAULT 0 COMMENT '0私有 1平台公开',
     status      TINYINT  DEFAULT 1 COMMENT '0停用 1启用',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
