@@ -24,6 +24,8 @@ public class MinioProperties {
     private Avatar avatar = new Avatar();
     @Builder.Default
     private Rag rag = new Rag();
+    @Builder.Default
+    private Gov gov = new Gov();
 
     @Data
     @Builder
@@ -43,5 +45,14 @@ public class MinioProperties {
         private DataSize maxRagFileSize;
         private Integer maxRefRagKbCount;
         private Integer maxRefRagDocCount;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Gov {
+        private String govFilesBaseUrl;
+        private DataSize maxGovFileSize;
     }
 }

@@ -78,6 +78,9 @@ edu:
       max_rag_file_size: 100MB
       max_ref_rag_kb_count: 10
       max_ref_rag_doc_count: 100
+    gov:
+      gov_files_base_url: gov/files/
+      max_gov_file_size: 100MB
   milvus:
     endpoint: ${custom.milvus.endpoint}
     token: ${custom.milvus.token}
