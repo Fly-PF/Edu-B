@@ -184,7 +184,8 @@ CREATE TABLE IF NOT EXISTS edu_gov_plan_task
     INDEX idx_gov_plan_task_status (user_id, status)
 ) COMMENT '考公学习便签任务';
 
-CREATE TABLE IF NOT EXISTS edu_gov_material_category
+DROP TABLE IF EXISTS edu_gov_material_category;
+CREATE TABLE edu_gov_material_category
 (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT,
     name        VARCHAR(50) NOT NULL COMMENT '资料分类名称',
@@ -199,19 +200,23 @@ CREATE TABLE IF NOT EXISTS edu_gov_material_category
     INDEX idx_gov_material_category_status_sort (status, sort_order)
 ) COMMENT '考公资料分类';
 
-CREATE TABLE IF NOT EXISTS edu_gov_material
+DROP TABLE IF EXISTS edu_gov_material;
+CREATE TABLE edu_gov_material
 (
-    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-    category_id  BIGINT       NOT NULL COMMENT '资料分类ID',
-    title        VARCHAR(200) NOT NULL COMMENT '资料名称',
-    description  VARCHAR(1000) COMMENT '资料说明',
-    links_json   JSON         NOT NULL COMMENT '网盘链接数组，含platform、url、accessCode',
-    status       TINYINT      NOT NULL DEFAULT 0 COMMENT '0草稿 1发布 2下架',
-    sort_order   INT          NOT NULL DEFAULT 0 COMMENT '展示排序',
-    create_by    BIGINT COMMENT '创建人ID',
-    update_by    BIGINT COMMENT '更新人ID',
-    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted      TINYINT      NOT NULL DEFAULT 0,
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    category_id   BIGINT       NOT NULL COMMENT '资料分类ID',
+    title         VARCHAR(200) NOT NULL COMMENT '资料名称',
+    description   VARCHAR(1000) COMMENT '资料说明',
+    material_type TINYINT      NOT NULL DEFAULT 0 COMMENT '0网盘链接 1pdf文件',
+    links_json    JSON COMMENT '网盘链接数组，含platform、url、accessCode',
+    file_name     VARCHAR(255) COMMENT '原始文件名称',
+    file_url      VARCHAR(255) COMMENT '原始文件地址',
+    status        TINYINT      NOT NULL DEFAULT 0 COMMENT '0草稿 1发布 2下架',
+    sort_order    INT          NOT NULL DEFAULT 0 COMMENT '展示排序',
+    create_by     BIGINT COMMENT '创建人ID',
+    update_by     BIGINT COMMENT '更新人ID',
+    create_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted       TINYINT      NOT NULL DEFAULT 0,
     INDEX idx_gov_material_category_status (category_id, status, sort_order)
 ) COMMENT '考公网盘资料';
