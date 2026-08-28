@@ -12,23 +12,26 @@ import com.edu.pojo.dto.teacherai.LessonPlanGenerateResponse;
 import com.edu.pojo.dto.teacherai.LessonPlanTeachingStep;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.OpenAiChatModel.ResponseFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -97,14 +100,7 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
             throw new UserErrorException(HttpStatus.SERVICE_UNAVAILABLE, "AI 模型尚未配置，请检查云端 API 配置");
         }
         try {
-            HttpResponse<String> response = send(system, user, maxTokens, true, model);
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                response = send(system, user, maxTokens, false, model);
-            }
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("模型接口返回 HTTP " + response.statusCode());
-            }
-            String content = extractContent(objectMapper.readTree(response.body()));
+            String content = callSpringAi(system, user, maxTokens, model, true);
             return objectMapper.readTree(extractJson(content));
         } catch (UserErrorException exception) {
             throw exception;
@@ -114,30 +110,34 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
         }
     }
 
-    private HttpResponse<String> send(String system, String user, int maxTokens, boolean jsonMode, String model) throws Exception {
-        var payload = objectMapper.createObjectNode();
-        payload.put("model", StringUtils.hasText(model) ? model : teacherModel().getModelName());
-        payload.put("temperature", 0.15);
-        payload.put("max_tokens", Math.max(maxTokens, teacherModel().getMaxTokens() == null ? DEFAULT_MAX_TOKENS : teacherModel().getMaxTokens()));
-        if (jsonMode) {
-            payload.putObject("response_format").put("type", "json_object");
-        }
-        var messages = payload.putArray("messages");
-        messages.addObject().put("role", "system").put("content", system);
-        messages.addObject().put("role", "user").put("content", user);
-
+    private String callSpringAi(String system, String user, int maxTokens, String model, boolean jsonMode) {
         AIModelProperties.Model config = teacherModel();
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(config.getBaseUrl()))
-                .timeout(Duration.ofMillis(Math.max(15_000, config.getTimeout() == null ? 90_000 : config.getTimeout())))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)));
-        if (StringUtils.hasText(config.getApiKey())) {
-            builder.header("Authorization", "Bearer " + config.getApiKey());
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .apiKey(config.getApiKey())
+                .baseUrl(normalizeBaseUrl(config.getBaseUrl()))
+                .model(StringUtils.hasText(model) ? model : config.getModelName())
+                .temperature(0.15)
+                .maxTokens(Math.max(maxTokens, config.getMaxTokens() == null ? DEFAULT_MAX_TOKENS : config.getMaxTokens()))
+                .extraBody(Map.of("enable_thinking", false));
+        if (jsonMode) {
+            optionsBuilder.responseFormat(ResponseFormat.builder()
+                    .type(ResponseFormat.Type.JSON_OBJECT)
+                    .build());
         }
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(Math.max(10_000, config.getTimeout() == null ? 90_000 : config.getTimeout())))
+        OpenAiChatModel chatModel = OpenAiChatModel.builder()
+                .options(optionsBuilder.build())
+                .observationRegistry(ObservationRegistry.NOOP)
                 .build();
-        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        ChatResponse response = chatModel.call(new Prompt(List.of(
+                new SystemMessage(system),
+                new UserMessage(user)
+        )));
+        return extractContent(response);
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        String value = baseUrl == null ? "" : baseUrl.trim();
+        return value.replaceFirst("/chat/completions/?$", "");
     }
 
     private AIModelProperties.Model teacherModel() {
@@ -221,10 +221,11 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
                 .orElse("");
     }
 
-    private String extractContent(JsonNode response) {
-        JsonNode content = response.path("choices").path(0).path("message").path("content");
-        if (content.isTextual() && StringUtils.hasText(content.asText())) {
-            return content.asText().trim();
+    private String extractContent(ChatResponse response) {
+        if (response != null && response.getResult() != null
+                && response.getResult().getOutput() != null
+                && StringUtils.hasText(response.getResult().getOutput().getText())) {
+            return response.getResult().getOutput().getText().trim();
         }
         throw invalidModelResponse("模型没有返回有效内容", null);
     }

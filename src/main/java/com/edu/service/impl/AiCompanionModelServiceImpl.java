@@ -9,18 +9,19 @@ import com.edu.pojo.vo.ai.AiCompanionModelResult;
 import com.edu.service.AiCompanionModelService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.ConnectException;
-import java.net.http.HttpTimeoutException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,7 +43,7 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
         }
 
         try {
-            String answer = callCompatibleChatApi(context, history, question);
+            String answer = callSpringAiChatModel(context, history, question);
             return new AiCompanionModelResult(
                     formatEvidenceAnswer(context, answer),
                     "MODEL",
@@ -50,15 +51,16 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
                     buildSourceSummary(context),
                     "NORMAL"
             );
-        } catch (HttpTimeoutException exception) {
-            log.warn("智能学伴模型回答超时", exception);
-            return modelUnavailable(context, "MODEL_TIMEOUT");
-        } catch (ConnectException exception) {
-            log.warn("智能学伴无法连接云端模型", exception);
-            return modelUnavailable(context, "MODEL_UNAVAILABLE");
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            log.warn("智能学伴模型调用被中断，将使用演示回答", exception);
+        } catch (RuntimeException exception) {
+            if (hasCause(exception, java.net.http.HttpTimeoutException.class)) {
+                log.warn("智能学伴模型回答超时", exception);
+                return modelUnavailable(context, "MODEL_TIMEOUT");
+            }
+            if (hasCause(exception, java.net.ConnectException.class)) {
+                log.warn("智能学伴无法连接云端模型", exception);
+                return modelUnavailable(context, "MODEL_UNAVAILABLE");
+            }
+            log.warn("智能学伴模型调用失败，将使用演示回答", exception);
             return modelUnavailable(context, "MODEL_UNAVAILABLE");
         } catch (Exception exception) {
             log.warn("智能学伴模型调用失败，将使用演示回答", exception);
@@ -66,57 +68,55 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
         }
     }
 
-    private String callCompatibleChatApi(
+    private String callSpringAiChatModel(
             AiCompanionContextVO context,
             List<AiCompanionMessageVO> history,
             String question
-    ) throws IOException, InterruptedException {
-        List<ChatMessage> messages = new ArrayList<>();
-        messages.add(new ChatMessage("system", buildSystemPrompt(context)));
+    ) {
+        List<Message> messages = new ArrayList<>();
+        messages.add(new SystemMessage(buildSystemPrompt(context)));
         history.stream()
                 .filter(message -> "USER".equalsIgnoreCase(message.getRole())
                         || "ASSISTANT".equalsIgnoreCase(message.getRole()))
                 .skip(Math.max(0, history.size() - 6L))
-                .forEach(message -> messages.add(new ChatMessage(
-                        "USER".equalsIgnoreCase(message.getRole()) ? "user" : "assistant",
-                        message.getContent()
-                )));
-        messages.add(new ChatMessage("user", question));
+                .forEach(message -> messages.add("USER".equalsIgnoreCase(message.getRole())
+                        ? new UserMessage(message.getContent())
+                        : new AssistantMessage(message.getContent())));
+        messages.add(new UserMessage(question));
 
-        var payload = objectMapper.createObjectNode();
-        payload.put("model", model().getModelName());
-        payload.put("temperature", 0.2);
-        payload.put("max_tokens", model().getMaxTokens() == null ? 560 : model().getMaxTokens());
-        var messageArray = payload.putArray("messages");
-        for (ChatMessage message : messages) {
-            var messageNode = messageArray.addObject();
-            messageNode.put("role", message.role());
-            messageNode.put("content", message.content());
-        }
-
-        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(model().getBaseUrl()))
-                .timeout(Duration.ofMillis(Math.max(5_000, model().getTimeout() == null ? 90_000 : model().getTimeout())))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)));
-        if (!isBlank(model().getApiKey())) {
-            requestBuilder.header("Authorization", "Bearer " + model().getApiKey());
-        }
-
-        HttpResponse<String> response = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(Math.max(5_000, model().getTimeout() == null ? 90_000 : model().getTimeout())))
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .apiKey(model().getApiKey())
+                .baseUrl(normalizeBaseUrl(model().getBaseUrl()))
+                .model(model().getModelName())
+                .temperature(0.2)
+                .maxTokens(model().getMaxTokens() == null ? 560 : model().getMaxTokens())
+                .extraBody(java.util.Map.of("enable_thinking", false))
+                .build();
+        ChatResponse response = OpenAiChatModel.builder()
+                .options(options)
+                .observationRegistry(ObservationRegistry.NOOP)
                 .build()
-                .send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("模型接口返回 HTTP " + response.statusCode());
+                .call(new Prompt(messages));
+        if (response == null || response.getResult() == null
+                || response.getResult().getOutput() == null
+                || isBlank(response.getResult().getOutput().getText())) {
+            throw new IllegalStateException("模型没有返回有效回答");
         }
+        return response.getResult().getOutput().getText().trim();
+    }
 
-        JsonNode content = objectMapper.readTree(response.body())
-                .path("choices").path(0).path("message").path("content");
-        if (content.isMissingNode() || isBlank(content.asText())) {
-            throw new IOException("模型接口没有返回有效回答");
+    private String normalizeBaseUrl(String baseUrl) {
+        String value = baseUrl == null ? "" : baseUrl.trim();
+        return value.replaceFirst("/chat/completions/?$", "");
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> type) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (type.isInstance(current)) return true;
+            current = current.getCause();
         }
-        return content.asText().trim();
+        return false;
     }
 
     private AIModelProperties.Business config() { return aiModelProperties.getCompanion(); }
@@ -273,6 +273,4 @@ public class AiCompanionModelServiceImpl implements AiCompanionModelService {
         return firstLineEnd < 0 ? "" : content.substring(firstLineEnd + 1).stripLeading();
     }
 
-    private record ChatMessage(String role, String content) {
-    }
 }
