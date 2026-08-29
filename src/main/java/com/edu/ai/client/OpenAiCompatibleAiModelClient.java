@@ -41,22 +41,26 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
     private final AIModelProperties aiModelProperties;
     private final ObjectMapper objectMapper;
     private static final int DEFAULT_MAX_TOKENS = 560;
+    private static final int LESSON_PLAN_MAX_TOKENS = 4096;
 
     @Override
     public LessonPlanGenerateResponse generateLessonPlan(LessonPlanGenerateRequest request) {
         String system = "你是中小学教师的智能备课助手。请使用简体中文，只返回一个 JSON 对象，不要返回 Markdown。"
-                + "字段必须为 title、objectives、keyPoints、difficultPoints、preparations、teachingSteps、"
-                + "activities、exercises、rubric、notes。teachingSteps 的元素字段为 stage、durationMinutes、"
-                + "teacherActivity、studentActivity、purpose，所有步骤时长之和必须等于课时。"
-                + "exercises 的元素字段为 question、type、referenceAnswer、difficulty。"
-                + "rubric 的元素字段为 criterion、description、maxScore。";
+                + "必须完整包含 title、objectives、keyPoints、difficultPoints、preparations、teachingSteps、"
+                + "activities、exercises、rubric、notes 这十个字段，不能为 null。objectives、keyPoints、"
+                + "difficultPoints、preparations、activities、notes 必须是字符串数组，不能是单个字符串。"
+                + "teachingSteps 必须是对象数组，每项必须包含 stage（字符串）、durationMinutes（整数）、"
+                + "teacherActivity（字符串）、studentActivity（字符串）、purpose（字符串），所有步骤时长之和"
+                + "必须等于课时。exercises 必须是对象数组，每项包含 question、type、referenceAnswer、difficulty"
+                + "四个字符串字段。rubric 必须是对象数组，每项包含 criterion、description（字符串）和"
+                + "maxScore（数字）。请生成可在 4096 token 内完成的完整教案。";
         String user = "课题：" + request.getTopic()
                 + "\n学段：" + request.getGrade()
                 + "\n课时：" + request.getDurationMinutes() + "分钟"
                 + "\n教学目标：" + request.getObjectives()
                 + "\n难度：" + request.getDifficulty()
                 + "\n补充要求：" + safe(request.getRequirements());
-        JsonNode json = requestJson(system, user, 2200);
+        JsonNode json = requestJson(system, user, LESSON_PLAN_MAX_TOKENS);
         try {
             LessonPlanGenerateResponse response = objectMapper.treeToValue(json, LessonPlanGenerateResponse.class);
             normalizeLessonPlan(request, response);
@@ -114,7 +118,7 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
         AIModelProperties.Model config = teacherModel();
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .apiKey(config.getApiKey())
-                .baseUrl(normalizeBaseUrl(config.getBaseUrl()))
+                .baseUrl(config.getBaseUrl())
                 .model(StringUtils.hasText(model) ? model : config.getModelName())
                 .temperature(0.15)
                 .maxTokens(Math.max(maxTokens, config.getMaxTokens() == null ? DEFAULT_MAX_TOKENS : config.getMaxTokens()))
@@ -133,11 +137,6 @@ public class OpenAiCompatibleAiModelClient implements AiModelClient {
                 new UserMessage(user)
         )));
         return extractContent(response);
-    }
-
-    private String normalizeBaseUrl(String baseUrl) {
-        String value = baseUrl == null ? "" : baseUrl.trim();
-        return value.replaceFirst("/chat/completions/?$", "");
     }
 
     private AIModelProperties.Model teacherModel() {
