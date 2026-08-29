@@ -60,6 +60,76 @@ CREATE TABLE sys_user_role
     INDEX idx_role_id (role_id)
 ) COMMENT '用户角色关联';
 
+INSERT INTO sys_role (role_name, role_code, sort, remark, create_by, update_by, deleted, ext_json)
+VALUES ('学生', 'STUDENT', 1, '学生角色', NULL, NULL, 0, '{}'),
+       ('教师', 'TEACHER', 2, '教师角色', NULL, NULL, 0, '{}'),
+       ('教研人员', 'RESEARCH', 3, '教研人员角色', NULL, NULL, 0, '{}'),
+       ('平台管理员', 'ADMIN', 4, '平台普通管理员', NULL, NULL, 0, '{}'),
+       ('超级管理员', 'SUPERADMIN', 5, '最高权限超级管理员', NULL, NULL, 0, '{}');
+
+-- 2. 插入用户数据（avatar字段省略不填，使用表默认值；所有新增账号密码同superadmin：12345678）
+INSERT INTO sys_user (username, password, real_name, phone, email, user_type, grade, school, status, last_login_time,
+                      last_login_ip, create_by, update_by, deleted, ext_json)
+VALUES ('superadmin', '$2a$10$VQ3P2P.oLQHXh/J3Ilt9DueYU7whyf7YqTMaepxNgiDhZ3h3Z6dd.', '超级管理员', '13800000001',
+        'super@edu.com', 5, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}'),
+       ('admin001', '$2a$10$8auu2uHdHOcNwbAu2FD5yuqEBMwaRzS69wtsK2A/YxcPt7f.AhRJe', '管理员001', '13800000002',
+        'admin001@edu.com', 4, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}'),
+       ('safety_s001', '$2a$10$ZZzL97P8ZzdSPIh/LMs8Qeo30.RrqgkzcW0fii5HWufb9qb5nypRa', '学生001', '13800000003',
+        'safety_s001@edu.com', 1, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}'),
+       ('teacher001', '$2a$10$PsPUfGR3rXMGf0UaQkOSgOaRekWZd6Grx2ewXxa2I2pZDl3P686Au', '教师001', '13800000004',
+        'teacher001@edu.com', 2, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}'),
+-- 新增3个账号
+       ('admin', '$2a$10$VQ3P2P.oLQHXh/J3Ilt9DueYU7whyf7YqTMaepxNgiDhZ3h3Z6dd.', '平台管理员', '13800000005',
+        'admin@edu.com', 4, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}'),
+       ('teacher', '$2a$10$VQ3P2P.oLQHXh/J3Ilt9DueYU7whyf7YqTMaepxNgiDhZ3h3Z6dd.', '教师', '13800000006',
+        'teacher@edu.com', 2, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}'),
+       ('student', '$2a$10$VQ3P2P.oLQHXh/J3Ilt9DueYU7whyf7YqTMaepxNgiDhZ3h3Z6dd.', '学生', '13800000007',
+        'student@edu.com', 1, NULL, '平台总部', 1, NULL, NULL, NULL, NULL, 0, '{}');
+
+-- 3. 用户分配角色
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'superadmin'
+  AND r.role_code = 'SUPERADMIN';
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'admin001'
+  AND r.role_code = 'ADMIN';
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'safety_s001'
+  AND r.role_code = 'STUDENT';
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'teacher001'
+  AND r.role_code = 'TEACHER';
+-- 新增账号绑定角色
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'admin'
+  AND r.role_code = 'ADMIN';
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'teacher'
+  AND r.role_code = 'TEACHER';
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT u.id, r.id
+FROM sys_user u,
+     sys_role r
+WHERE u.username = 'student'
+  AND r.role_code = 'STUDENT';
 -- 二、班级教学管理模块
 DROP TABLE IF EXISTS edu_class;
 CREATE TABLE edu_class
@@ -659,6 +729,366 @@ CREATE TABLE edu_safety_record
     INDEX idx_manual_review_required (manual_review_required)
 ) COMMENT 'education safety evaluation record';
 
+CREATE TABLE IF NOT EXISTS edu_learning_intervention
+(
+    id               BIGINT PRIMARY KEY AUTO_INCREMENT,
+    class_id         BIGINT        NOT NULL COMMENT '班级ID',
+    course_id        BIGINT        NOT NULL COMMENT '课程ID',
+    student_id       BIGINT        NOT NULL COMMENT '学生ID',
+    teacher_id       BIGINT        NOT NULL COMMENT '下发教师ID',
+    risk_score       INT           NOT NULL DEFAULT 0 COMMENT '下发时的风险分快照',
+    title            VARCHAR(200)  NOT NULL COMMENT '行动卡标题',
+    task_description VARCHAR(1000) NOT NULL COMMENT '学生执行任务',
+    status           VARCHAR(30)   NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/IN_PROGRESS/READY_FOR_REVIEW/CLOSED',
+    student_feedback VARCHAR(1000) COMMENT '学生学习反馈',
+    created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    closed_at        DATETIME COMMENT '教师闭环时间',
+    INDEX idx_learning_intervention_class (class_id),
+    INDEX idx_learning_intervention_student (student_id),
+    INDEX idx_learning_intervention_status (status)
+) COMMENT '学情分析行动卡';
+
+CREATE TABLE IF NOT EXISTS edu_learning_case
+(
+    id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+    class_id          BIGINT        NOT NULL,
+    course_id         BIGINT        NOT NULL,
+    chapter_id        BIGINT        NULL,
+    student_id        BIGINT        NOT NULL,
+    teacher_id        BIGINT        NOT NULL,
+    risk_score        INT           NOT NULL DEFAULT 0,
+    risk_level        VARCHAR(20)   NOT NULL,
+    behavior_snapshot TEXT          NOT NULL,
+    diagnosis         VARCHAR(1000) NOT NULL,
+    diagnosis_source  VARCHAR(30)   NOT NULL,
+    model_name        VARCHAR(120)  NOT NULL,
+    status            VARCHAR(30)   NOT NULL,
+    created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_learning_case_class (class_id),
+    INDEX idx_learning_case_student (student_id),
+    INDEX idx_learning_case_status (status)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='AI学习诊断案例';
+
+CREATE TABLE IF NOT EXISTS edu_learning_plan
+(
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    case_id             BIGINT        NOT NULL,
+    title               VARCHAR(200)  NOT NULL,
+    learning_goal       VARCHAR(1000) NOT NULL,
+    task_steps          TEXT          NOT NULL,
+    duration_minutes    INT           NOT NULL,
+    acceptance_criteria VARCHAR(1000) NOT NULL,
+    check_question      VARCHAR(1000) NOT NULL,
+    expected_signals    TEXT          NOT NULL,
+    teacher_decision    VARCHAR(30)   NOT NULL DEFAULT 'PENDING',
+    status              VARCHAR(30)   NOT NULL DEFAULT 'DRAFT',
+    created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_learning_plan_case (case_id),
+    INDEX idx_learning_plan_status (status)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='AI学习微计划';
+
+CREATE TABLE IF NOT EXISTS edu_learning_evidence
+(
+    id                 BIGINT PRIMARY KEY AUTO_INCREMENT,
+    plan_id            BIGINT        NOT NULL,
+    student_id         BIGINT        NOT NULL,
+    reflection         VARCHAR(2000) NOT NULL,
+    difficulty         VARCHAR(1000) NOT NULL,
+    answer             VARCHAR(2000) NOT NULL,
+    ai_assessment      VARCHAR(1000) NOT NULL,
+    confidence         INT           NOT NULL DEFAULT 0,
+    result             VARCHAR(30)   NOT NULL,
+    assessment_source  VARCHAR(30)   NOT NULL,
+    teacher_conclusion VARCHAR(1000) NULL,
+    submitted_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at        DATETIME      NULL,
+    INDEX idx_learning_evidence_plan (plan_id),
+    INDEX idx_learning_evidence_student (student_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='学生学习证据与理解检查';
+
+CREATE TABLE IF NOT EXISTS edu_learning_ai_trace
+(
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    case_id         BIGINT        NULL,
+    plan_id         BIGINT        NULL,
+    student_id      BIGINT        NOT NULL,
+    operation       VARCHAR(30)   NOT NULL,
+    model_name      VARCHAR(120)  NOT NULL,
+    source          VARCHAR(30)   NOT NULL,
+    context_summary VARCHAR(1000) NOT NULL,
+    elapsed_millis  BIGINT        NOT NULL DEFAULT 0,
+    created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_learning_trace_case (case_id),
+    INDEX idx_learning_trace_plan (plan_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='学情AI生成轨迹';
+
+CREATE TABLE IF NOT EXISTS edu_learning_recommendation
+(
+    id                   BIGINT PRIMARY KEY AUTO_INCREMENT,
+    batch_id             VARCHAR(64)   NOT NULL,
+    student_id           BIGINT        NOT NULL,
+    course_id            BIGINT        NOT NULL,
+    recommendation_score INT           NOT NULL DEFAULT 0,
+    reason               VARCHAR(1000) NOT NULL,
+    source               VARCHAR(30)   NOT NULL,
+    model_name           VARCHAR(120)  NOT NULL,
+    created_at           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_learning_recommendation_student (student_id),
+    INDEX idx_learning_recommendation_batch (batch_id)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='AI课程推荐结果';
+
+CREATE TABLE IF NOT EXISTS edu_learning_practice
+(
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    course_id      BIGINT       NOT NULL,
+    practice_title VARCHAR(120) NOT NULL,
+    practice_intro VARCHAR(500) NULL,
+    total_score    INT          NOT NULL DEFAULT 100,
+    status         TINYINT      NOT NULL DEFAULT 1,
+    create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_learning_practice_course (course_id)
+);
+
+CREATE TABLE IF NOT EXISTS edu_learning_question
+(
+    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+    practice_id        BIGINT      NOT NULL,
+    question_type      VARCHAR(20) NOT NULL,
+    question_content   TEXT        NOT NULL,
+    options_json       TEXT        NULL,
+    reference_answer   TEXT        NULL,
+    answer_explanation TEXT        NULL,
+    question_score     INT         NOT NULL DEFAULT 10,
+    sort_order         INT         NOT NULL DEFAULT 0,
+    create_time        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_learning_question_practice (practice_id)
+);
+
+CREATE TABLE IF NOT EXISTS edu_learning_submission
+(
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    practice_id          BIGINT        NOT NULL,
+    student_id           BIGINT        NOT NULL,
+    student_name         VARCHAR(80)   NULL,
+    answer_json          TEXT          NOT NULL,
+    question_review_json TEXT          NULL,
+    auto_score           INT           NOT NULL DEFAULT 0,
+    teacher_score        INT           NULL,
+    teacher_feedback     VARCHAR(1000) NULL,
+    status               VARCHAR(20)   NOT NULL DEFAULT 'SUBMITTED',
+    submit_time          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    review_time          DATETIME      NULL,
+    reviewer_id          BIGINT        NULL,
+    update_time          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_learning_submission_student (practice_id, student_id),
+    INDEX idx_learning_submission_practice (practice_id),
+    INDEX idx_learning_submission_student (student_id)
+);
+
+CREATE TABLE IF NOT EXISTS edu_resource_block_project
+(
+    resource_id BIGINT PRIMARY KEY,
+    project_id  BIGINT   NOT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_resource_block_project_project (project_id)
+) COMMENT 'Course resource to public Blockly project relation';
+
+
+-- Edu-F 考公专题建表 SQL
+-- 依赖现有 sys_user.id；本文件不会自动接入 Spring Boot 初始化配置。
+-- 内容字段使用 Markdown + LaTeX；图片仅保存服务器访问地址。
+
+CREATE TABLE IF NOT EXISTS edu_gov_news_category
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name        VARCHAR(50) NOT NULL COMMENT '资讯分类名称',
+    sort_order  INT         NOT NULL DEFAULT 0 COMMENT '展示排序，数值越小越靠前',
+    status      TINYINT     NOT NULL DEFAULT 1 COMMENT '0停用 1启用',
+    create_by   BIGINT COMMENT '创建人ID',
+    update_by   BIGINT COMMENT '更新人ID',
+    create_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT     NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_news_category_name (name),
+    INDEX idx_gov_news_category_status_sort (status, sort_order)
+) COMMENT '考公资讯分类';
+
+CREATE TABLE IF NOT EXISTS edu_gov_news
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    category_id  BIGINT       NOT NULL COMMENT '资讯分类ID',
+    title        VARCHAR(200) NOT NULL COMMENT '资讯标题',
+    summary      VARCHAR(500) COMMENT '资讯摘要',
+    content_md   LONGTEXT     NOT NULL COMMENT 'Markdown + LaTeX正文',
+    cover_url    VARCHAR(500) COMMENT '封面图片地址',
+    is_top       TINYINT      NOT NULL DEFAULT 0 COMMENT '是否置顶',
+    status       TINYINT      NOT NULL DEFAULT 0 COMMENT '0草稿 1发布 2下架',
+    published_at DATETIME COMMENT '发布时间',
+    create_by    BIGINT COMMENT '创建人ID',
+    update_by    BIGINT COMMENT '更新人ID',
+    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT      NOT NULL DEFAULT 0,
+    INDEX idx_gov_news_category_status (category_id, status),
+    INDEX idx_gov_news_publish (status, is_top, published_at)
+) COMMENT '考公资讯公告';
+
+CREATE TABLE IF NOT EXISTS edu_gov_knowledge_node
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    subject     VARCHAR(30)  NOT NULL COMMENT '行测科目',
+    parent_id   BIGINT       NOT NULL DEFAULT 0 COMMENT '父节点ID，根节点为0',
+    node_type   VARCHAR(20)  NOT NULL COMMENT 'CHAPTER章节 POINT知识点',
+    title       VARCHAR(200) NOT NULL COMMENT '章节或知识点名称',
+    content_md  LONGTEXT COMMENT 'Markdown + LaTeX内容',
+    sort_order  INT          NOT NULL DEFAULT 0 COMMENT '同级排序',
+    status      TINYINT      NOT NULL DEFAULT 1 COMMENT '0停用 1启用',
+    create_by   BIGINT COMMENT '创建人ID',
+    update_by   BIGINT COMMENT '更新人ID',
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT      NOT NULL DEFAULT 0,
+    INDEX idx_gov_knowledge_tree (subject, parent_id, sort_order),
+    INDEX idx_gov_knowledge_status (status)
+) COMMENT '考公知识点目录';
+
+CREATE TABLE IF NOT EXISTS edu_gov_knowledge_progress
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT      NOT NULL COMMENT '用户ID(sys_user.id)',
+    knowledge_id BIGINT      NOT NULL COMMENT '知识点ID',
+    status       VARCHAR(20) NOT NULL DEFAULT 'TODO' COMMENT 'TODO未学习 LEARNING学习中 DONE已完成',
+    completed_at DATETIME COMMENT '完成时间',
+    create_time  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT     NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_knowledge_progress (user_id, knowledge_id),
+    INDEX idx_gov_knowledge_progress_user (user_id, status)
+) COMMENT '用户考公知识点进度';
+
+CREATE TABLE IF NOT EXISTS edu_gov_question
+(
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    subject       VARCHAR(30) NOT NULL COMMENT '行测科目',
+    question_type VARCHAR(20) NOT NULL COMMENT 'SINGLE单选 MULTIPLE多选',
+    difficulty    TINYINT     NOT NULL DEFAULT 1 COMMENT '难度1-5',
+    exam_year     SMALLINT COMMENT '试题年份',
+    source_type   VARCHAR(20) NOT NULL DEFAULT 'SIMULATION' COMMENT 'REAL真题 SIMULATION模拟题',
+    content_json  JSON        NOT NULL COMMENT '题干、材料、选项、答案、解析和标签',
+    status        TINYINT     NOT NULL DEFAULT 0 COMMENT '0草稿 1上架 2下架',
+    create_by     BIGINT COMMENT '创建人ID',
+    update_by     BIGINT COMMENT '更新人ID',
+    create_time   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted       TINYINT     NOT NULL DEFAULT 0,
+    INDEX idx_gov_question_filter (subject, question_type, difficulty, exam_year, status),
+    INDEX idx_gov_question_source (source_type, exam_year)
+) COMMENT '考公行测题目';
+
+CREATE TABLE IF NOT EXISTS edu_gov_question_knowledge
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    question_id  BIGINT   NOT NULL COMMENT '题目ID',
+    knowledge_id BIGINT   NOT NULL COMMENT '知识点ID',
+    create_time  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_gov_question_knowledge (question_id, knowledge_id),
+    INDEX idx_gov_qk_knowledge (knowledge_id)
+) COMMENT '考公题目与知识点关联';
+
+CREATE TABLE IF NOT EXISTS edu_gov_practice_record
+(
+    id                     BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id                BIGINT      NOT NULL COMMENT '用户ID(sys_user.id)',
+    practice_mode          VARCHAR(20) NOT NULL COMMENT 'SPECIAL专项 DAILY每日一练 WRONG错题重做 MOCK随机模拟考试',
+    subject                VARCHAR(30) COMMENT '行测科目，综合练习时为空',
+    total_count            INT         NOT NULL DEFAULT 0 COMMENT '题目总数',
+    correct_count          INT         NOT NULL DEFAULT 0 COMMENT '答对数',
+    duration_limit_seconds INT COMMENT '限时秒数，仅模拟考试使用',
+    score                  DECIMAL(8, 2) COMMENT '练习或模拟考试得分',
+    status                 VARCHAR(20) NOT NULL DEFAULT 'DOING' COMMENT 'DOING进行中 FINISHED已完成',
+    started_at             DATETIME COMMENT '开始时间',
+    finished_at            DATETIME COMMENT '完成时间',
+    create_time            DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time            DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted                TINYINT     NOT NULL DEFAULT 0,
+    INDEX idx_gov_practice_user_time (user_id, create_time),
+    INDEX idx_gov_practice_mode (practice_mode, status)
+) COMMENT '考公普通练习与随机模拟考试记录';
+
+CREATE TABLE IF NOT EXISTS edu_gov_practice_answer
+(
+    id                   BIGINT PRIMARY KEY AUTO_INCREMENT,
+    practice_id          BIGINT   NOT NULL COMMENT '练习记录ID',
+    question_id          BIGINT   NOT NULL COMMENT '题目ID',
+    question_order       INT      NOT NULL COMMENT '本次练习中的题目顺序，从1开始',
+    selected_answer_json JSON COMMENT '用户选择，例如 ["A","C"]',
+    is_correct           TINYINT COMMENT '0错误 1正确',
+    duration_seconds     INT COMMENT '本题用时秒数',
+    answered_at          DATETIME COMMENT '作答时间',
+    create_time          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted              TINYINT  NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_practice_answer_question (practice_id, question_id),
+    UNIQUE KEY uk_gov_practice_answer_order (practice_id, question_order),
+    INDEX idx_gov_practice_answer_question (question_id)
+) COMMENT '考公练习答题明细';
+
+CREATE TABLE IF NOT EXISTS edu_gov_wrong_question
+(
+    id             BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id        BIGINT   NOT NULL COMMENT '用户ID(sys_user.id)',
+    question_id    BIGINT   NOT NULL COMMENT '题目ID',
+    wrong_count    INT      NOT NULL DEFAULT 1 COMMENT '做错次数',
+    first_wrong_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_wrong_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status         TINYINT  NOT NULL DEFAULT 1 COMMENT '1待复习 0已掌握',
+    create_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted        TINYINT  NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_wrong_question (user_id, question_id),
+    INDEX idx_gov_wrong_user_status (user_id, status, last_wrong_at)
+) COMMENT '考公错题本';
+
+CREATE TABLE IF NOT EXISTS edu_gov_user_goal
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT       NOT NULL COMMENT '用户ID(sys_user.id)，每个用户一条当前目标',
+    exam_type   VARCHAR(30) COMMENT '国考、省考等',
+    exam_name   VARCHAR(100) NOT NULL COMMENT '目标考试名称',
+    exam_date   DATE         NOT NULL COMMENT '考试日期',
+    note        VARCHAR(500) COMMENT '备注',
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT      NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_user_goal_user (user_id)
+) COMMENT '用户当前公考目标';
+
+CREATE TABLE IF NOT EXISTS edu_gov_plan_task
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT       NOT NULL COMMENT '用户ID(sys_user.id)',
+    task_date    DATE         NOT NULL COMMENT '任务日期',
+    title        VARCHAR(200) NOT NULL COMMENT '便签任务内容',
+    task_type    VARCHAR(30) COMMENT 'QUESTION题目 READING阅读 OTHER其他',
+    target_value INT COMMENT '可选目标数量，仅作展示，不自动核验',
+    status       TINYINT      NOT NULL DEFAULT 0 COMMENT '0未完成 1已完成',
+    completed_at DATETIME COMMENT '完成时间',
+    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT      NOT NULL DEFAULT 0,
+    INDEX idx_gov_plan_task_user_date (user_id, task_date),
+    INDEX idx_gov_plan_task_status (user_id, status)
+) COMMENT '考公学习便签任务';
+
 DROP TABLE IF EXISTS edu_gov_material_category;
 CREATE TABLE edu_gov_material_category
 (
@@ -695,3 +1125,4 @@ CREATE TABLE edu_gov_material
     deleted       TINYINT      NOT NULL DEFAULT 0,
     INDEX idx_gov_material_category_status (category_id, status, sort_order)
 ) COMMENT '考公网盘资料';
+

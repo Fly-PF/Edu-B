@@ -11,7 +11,13 @@ class EduBApplicationTests {
 
     @Test
     void contextLoads() {
-        System.out.println(new BCryptPasswordEncoder().encode("123456"));
+        // superadmin 密码：12345678
+        System.out.println(new BCryptPasswordEncoder().encode("12345678"));
+        // admin001 密码：Admin@123456
+        System.out.println(new BCryptPasswordEncoder().encode("Admin@123456"));
+        // safety_s001 密码：Student@123456
+        System.out.println(new BCryptPasswordEncoder().encode("Student@123456"));
+        // teacher001 密码：Teacher@123456
+        System.out.println(new BCryptPasswordEncoder().encode("Teacher@123456"));
     }
-
 }
