@@ -71,8 +71,9 @@ public class WebSecurityConfig {
                         "/api/user/avatar/image",
                         "/api/rag/kb/cover",
                         "/api/rag/chat/image",
-                        "/api/rag/files/preview",
-                        "/api/course-files/**"
+                          "/api/rag/files/preview",
+                          "/api/course-files/**",
+                          "/api/gov-materials/file"
                 ).permitAll()
                 .requestMatchers(GET, "/api/course-categories", "/api/course-categories/tags").permitAll()
                 .requestMatchers(GET, "/api/ai-exhibit/overview", "/api/ai-exhibit/cases").permitAll()
