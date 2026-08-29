@@ -3,18 +3,20 @@ package com.edu.learninganalysis;
 import com.edu.common.properties.AIModelProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatModel.ResponseFormat;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,7 +27,6 @@ import java.util.Set;
 @Component
 public class CourseAssistantGateway {
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
     private final String baseUrl;
     private final String apiKey;
     private final String model;
@@ -34,11 +35,10 @@ public class CourseAssistantGateway {
     public CourseAssistantGateway(ObjectMapper objectMapper, AIModelProperties properties) {
         AIModelProperties.Model config = properties.getLearningAnalysis().getChatModel();
         this.objectMapper = objectMapper;
-        this.baseUrl = config.getBaseUrl();
+        this.baseUrl = normalizeBaseUrl(config.getBaseUrl());
         this.apiKey = config.getApiKey();
         this.model = StringUtils.hasText(config.getModelName()) ? config.getModelName() : "gpt-4.1-mini";
         this.jsonMode = true;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
     }
 
     public String modelName() {
@@ -116,33 +116,33 @@ public class CourseAssistantGateway {
 
     private Optional<String> requestCompletion(String system, String user, boolean requireJson) {
         try {
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("model", model);
-            payload.put("temperature", 0.2);
-            payload.put("messages", List.of(
-                    Map.of("role", "system", "content", system),
-                    Map.of("role", "user", "content", user)
-            ));
+            OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                    .apiKey(apiKey)
+                    .baseUrl(baseUrl)
+                    .model(model)
+                    .temperature(0.2);
             if (requireJson) {
-                payload.put("response_format", Map.of("type", "json_object"));
+                optionsBuilder.responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.Type.JSON_OBJECT)
+                        .build());
             }
-            HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl))
-                    .timeout(Duration.ofSeconds(35))
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+            OpenAiChatModel chatModel = OpenAiChatModel.builder()
+                    .options(optionsBuilder.build())
+                    .observationRegistry(ObservationRegistry.NOOP)
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("Learning AI provider returned HTTP {}: {}", response.statusCode(), abbreviate(response.body(), 500));
-                return Optional.empty();
-            }
-            String content = extractContent(objectMapper.readTree(response.body()));
+            ChatResponse response = chatModel.call(new Prompt(List.of(
+                    new SystemMessage(system),
+                    new UserMessage(user)
+            )));
+            String content = response == null || response.getResult() == null
+                    || response.getResult().getOutput() == null
+                    ? ""
+                    : response.getResult().getOutput().getText();
             if (!StringUtils.hasText(content)) {
                 log.warn("Learning AI provider returned no assistant message content");
                 return Optional.empty();
             }
-            return Optional.of(content);
+            return Optional.of(content.trim());
         } catch (Exception exception) {
             log.warn("Learning AI provider unavailable: {}", exception.getMessage());
             return Optional.empty();
@@ -168,45 +168,9 @@ public class CourseAssistantGateway {
         }
     }
 
-    private String extractContent(JsonNode response) {
-        String choiceContent = contentText(response.path("choices").path(0).path("message").path("content"));
-        if (StringUtils.hasText(choiceContent)) {
-            return choiceContent;
-        }
-        return contentText(response.path("output").path(0).path("content"));
-    }
-
-    private String contentText(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) {
-            return "";
-        }
-        if (node.isTextual()) {
-            return node.asText().trim();
-        }
-        if (node.isArray()) {
-            StringBuilder result = new StringBuilder();
-            for (JsonNode item : node) {
-                String value = item.isTextual() ? item.asText() : firstTextField(item);
-                if (StringUtils.hasText(value)) {
-                    if (!result.isEmpty()) {
-                        result.append('\n');
-                    }
-                    result.append(value.trim());
-                }
-            }
-            return result.toString();
-        }
-        return firstTextField(node);
-    }
-
-    private String firstTextField(JsonNode node) {
-        for (String field : List.of("text", "value", "content")) {
-            String value = contentText(node.path(field));
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
-        }
-        return "";
+    private String normalizeBaseUrl(String baseUrl) {
+        String value = baseUrl == null ? "" : baseUrl.trim();
+        return value.replaceFirst("/chat/completions/?$", "");
     }
 
     private String abbreviate(String value, int maxLength) {
