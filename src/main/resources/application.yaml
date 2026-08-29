@@ -148,11 +148,11 @@ edu:
         timeout: ${custom.ai-model.companion.web-search.timeout}
     learning-analysis:
       chat-model:
-        supplier: ${custom.ai-model.learning-analysis.chat-model.supplier:openai}
-        base-url: ${custom.ai-model.learning-analysis.chat-model.base-url:${OPENAI_BASE_URL:https://api.vveai.com/v1}}
-        api-key: ${custom.ai-model.learning-analysis.chat-model.api-key:${OPENAI_API_KEY}}
-        model-type: ${custom.ai-model.learning-analysis.chat-model.model-type:textmodel}
-        model-name: ${custom.ai-model.learning-analysis.chat-model.model-name:gpt-4.1-mini}
+        supplier: ${custom.ai-model.learning-analysis.chat-model.supplier}
+        base-url: ${custom.ai-model.learning-analysis.chat-model.base-url}
+        api-key: ${custom.ai-model.learning-analysis.chat-model.api-key}
+        model-type: ${custom.ai-model.learning-analysis.chat-model.model-type}
+        model-name: ${custom.ai-model.learning-analysis.chat-model.model-name}
     safety-semantic:
       chat-model:
         supplier: ${custom.ai-model.safety-semantic.chat-model.supplier}
