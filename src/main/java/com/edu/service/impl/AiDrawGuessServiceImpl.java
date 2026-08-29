@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,13 +36,13 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
         validateRequest(request);
         AIModelProperties.Model model = aiModelProperties.getDrawGuess().getMultiModel();
         if (!StringUtils.hasText(model.getApiKey())) {
-            throw new BaseException(HttpStatus.SERVICE_UNAVAILABLE, "未配置 OpenAI API Key，无法调用真实视觉模型");
+            throw new BaseException(HttpStatus.SERVICE_UNAVAILABLE, "未配置视觉模型 API Key，无法调用真实视觉模型");
         }
 
         String responseText = callOpenAi(model, request);
         List<AiDrawGuessPredictionVO> predictions = parsePredictions(responseText);
         return AiDrawGuessResultVO.builder()
-                .provider("openai")
+                .provider(StringUtils.hasText(model.getSupplier()) ? model.getSupplier() : "openai")
                 .model(model.getModelName())
                 .summary("AI 已根据画布图片返回猜测结果")
                 .predictions(predictions)
@@ -65,44 +66,59 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
             AIModelProperties.Model model,
             AiDrawGuessRequest request
     ) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("model", model.getModelName());
-        payload.put("max_output_tokens", 300);
-        payload.put("input", List.of(Map.of(
-                "role", "user",
-                "content", List.of(
-                        Map.of(
-                                "type", "input_text",
-                                "text", buildPrompt()
-                        ),
-                        Map.of(
-                                "type", "input_image",
-                                "image_url", request.getImageDataUrl()
-                        )
-                )
-        )));
-
         try {
-            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-            int timeout = Math.max(1_000, model.getTimeout() == null ? 20_000 : model.getTimeout());
-            requestFactory.setConnectTimeout(timeout);
-            requestFactory.setReadTimeout(timeout);
-            String body = RestClient.builder()
-                    .baseUrl(trimEndSlash(model.getBaseUrl()))
-                    .requestFactory(requestFactory)
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + model.getApiKey())
-                    .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                    .build()
-                    .post()
-                    .uri("")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .body(String.class);
-            return extractOutputText(body);
+            String endpoint = normalizeBaseUrl(model.getBaseUrl());
+            boolean responsesApi = endpoint.endsWith("/responses");
+            return invokeOpenAi(model, request, responsesApi);
         } catch (RestClientException ex) {
             throw new BaseException(HttpStatus.BAD_GATEWAY, "调用视觉模型失败：" + ex.getMessage());
         }
+    }
+
+    private String invokeOpenAi(
+            AIModelProperties.Model model,
+            AiDrawGuessRequest request,
+            boolean responsesApi
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", model.getModelName());
+        if (responsesApi) {
+            payload.put("max_output_tokens", 300);
+            payload.put("input", List.of(Map.of(
+                    "role", "user",
+                    "content", List.of(
+                            Map.of("type", "input_text", "text", buildPrompt()),
+                            Map.of("type", "input_image", "image_url", request.getImageDataUrl())
+                    )
+            )));
+        } else {
+            payload.put("max_tokens", 300);
+            payload.put("messages", List.of(Map.of(
+                    "role", "user",
+                    "content", List.of(
+                            Map.of("type", "text", "text", buildPrompt()),
+                            Map.of("type", "image_url", "image_url", Map.of("url", request.getImageDataUrl()))
+                    )
+            )));
+        }
+
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        int timeout = Math.max(1_000, model.getTimeout() == null ? 20_000 : model.getTimeout());
+        requestFactory.setConnectTimeout(timeout);
+        requestFactory.setReadTimeout(timeout);
+        String body = RestClient.builder()
+                .baseUrl(resolveEndpoint(model.getBaseUrl(), responsesApi))
+                .requestFactory(requestFactory)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + model.getApiKey())
+                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                .build()
+                .post()
+                .uri("")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(payload)
+                .retrieve()
+                .body(String.class);
+        return extractOutputText(body);
     }
 
     private String buildPrompt() {
@@ -144,6 +160,25 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
                 }
                 if (!builder.isEmpty()) {
                     return builder.toString();
+                }
+            }
+            JsonNode choices = root.path("choices");
+            if (choices.isArray() && !choices.isEmpty()) {
+                JsonNode content = choices.get(0).path("message").path("content");
+                if (content.isTextual() && StringUtils.hasText(content.asText())) {
+                    return content.asText();
+                }
+                if (content.isArray()) {
+                    StringBuilder builder = new StringBuilder();
+                    for (JsonNode item : content) {
+                        JsonNode text = item.path("text");
+                        if (text.isTextual()) {
+                            builder.append(text.asText());
+                        }
+                    }
+                    if (!builder.isEmpty()) {
+                        return builder.toString();
+                    }
                 }
             }
         } catch (Exception ex) {
@@ -212,5 +247,29 @@ public class AiDrawGuessServiceImpl implements com.edu.service.AiDrawGuessServic
             result = result.substring(0, result.length() - 1);
         }
         return result;
+    }
+
+    private String normalizeBaseUrl(String value) {
+        String endpoint = trimEndSlash(value);
+        try {
+            URI uri = URI.create(endpoint);
+            String path = uri.getPath();
+            if (!StringUtils.hasText(path) || "/".equals(path)) {
+                return endpoint + "/v1";
+            }
+        } catch (Exception ignored) {
+            if (!endpoint.contains("/v1")) {
+                return endpoint + "/v1";
+            }
+        }
+        return endpoint;
+    }
+
+    private String resolveEndpoint(String value, boolean responsesApi) {
+        String endpoint = normalizeBaseUrl(value);
+        if (endpoint.endsWith("/chat/completions") || endpoint.endsWith("/responses")) {
+            return endpoint;
+        }
+        return endpoint + (responsesApi ? "/responses" : "/chat/completions");
     }
 }
