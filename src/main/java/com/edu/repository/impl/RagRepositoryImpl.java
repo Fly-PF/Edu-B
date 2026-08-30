@@ -443,9 +443,6 @@ public class RagRepositoryImpl implements RagRepository {
         if (!StringUtils.hasText(milvusProperties.getEndpoint())) {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "Milvus endpoint未配置");
         }
-        if (!StringUtils.hasText(milvusProperties.getToken())) {
-            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "Milvus token未配置");
-        }
         if (!StringUtils.hasText(milvusProperties.getDatabaseName())) {
             throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "Milvus database_name未配置");
         }

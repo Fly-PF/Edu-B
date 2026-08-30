@@ -975,6 +975,64 @@ CREATE TABLE IF NOT EXISTS edu_gov_knowledge_progress
     INDEX idx_gov_knowledge_progress_user (user_id, status)
 ) COMMENT '用户考公知识点进度';
 
+CREATE TABLE IF NOT EXISTS edu_gov_knowledge_compare
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    knowledge_id BIGINT       NOT NULL COMMENT '知识点ID',
+    title        VARCHAR(200) NOT NULL COMMENT '对比标题',
+    content_md   LONGTEXT     COMMENT 'Markdown对比内容',
+    sort_order   INT          NOT NULL DEFAULT 0 COMMENT '排序',
+    status       TINYINT      NOT NULL DEFAULT 1 COMMENT '0停用 1启用',
+    create_by    BIGINT COMMENT '创建人ID',
+    update_by    BIGINT COMMENT '更新人ID',
+    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT      NOT NULL DEFAULT 0,
+    INDEX idx_gov_knowledge_compare_knowledge (knowledge_id, status, sort_order)
+) COMMENT '考公知识点易混辨析';
+
+CREATE TABLE IF NOT EXISTS edu_gov_knowledge_favorite
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT      NOT NULL COMMENT '用户ID(sys_user.id)',
+    knowledge_id BIGINT      NOT NULL COMMENT '知识点ID',
+    create_time  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT     NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_knowledge_favorite (user_id, knowledge_id)
+) COMMENT '考公知识点收藏';
+
+CREATE TABLE IF NOT EXISTS edu_gov_knowledge_note
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id      BIGINT      NOT NULL COMMENT '用户ID(sys_user.id)',
+    knowledge_id BIGINT      NOT NULL COMMENT '知识点ID',
+    note_content LONGTEXT    COMMENT '笔记内容',
+    create_time  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted      TINYINT     NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_gov_knowledge_note (user_id, knowledge_id)
+) COMMENT '考公知识点笔记';
+
+CREATE TABLE IF NOT EXISTS edu_gov_knowledge_annotation
+(
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id       BIGINT        NOT NULL COMMENT '用户ID(sys_user.id)',
+    knowledge_id  BIGINT        NOT NULL COMMENT '知识点ID',
+    section_key   VARCHAR(100)  NOT NULL COMMENT '正文段落标识',
+    section_title VARCHAR(200)  NOT NULL COMMENT '正文段落标题',
+    start_offset  INT           NOT NULL COMMENT '段落内起始位置',
+    end_offset    INT           NOT NULL COMMENT '段落内结束位置',
+    selected_text VARCHAR(2000) NOT NULL COMMENT '选中的正文内容',
+    note_content  VARCHAR(5000) NOT NULL COMMENT '标注说明',
+    color         VARCHAR(20)   NOT NULL DEFAULT 'lavender' COMMENT '标注颜色 lavender/mint/peach/teal',
+    create_time   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted       TINYINT       NOT NULL DEFAULT 0,
+    INDEX idx_gov_knowledge_annotation_user (user_id, knowledge_id, deleted),
+    INDEX idx_gov_knowledge_annotation_node (knowledge_id, section_key, deleted)
+) COMMENT '考公知识点正文标注';
+
 CREATE TABLE IF NOT EXISTS edu_gov_question
 (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT,
