@@ -679,7 +679,9 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private boolean isRagResource(EduResourcePO resource) {
-        return Objects.equals(resource.getResourceType(), 2) || Objects.equals(resource.getResourceType(), 3);
+        return Objects.equals(resource.getResourceType(), 2)
+                || Objects.equals(resource.getResourceType(), 3)
+                || (resource.getResourceUrl() != null && resource.getResourceUrl().toLowerCase().endsWith(".vtt"));
     }
 
     private CourseStudyRecordVO toStudyRecordVO(EduStudyRecordPO record) {

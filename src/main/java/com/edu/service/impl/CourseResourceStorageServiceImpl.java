@@ -31,7 +31,7 @@ public class CourseResourceStorageServiceImpl implements CourseResourceStorageSe
             "mp4", "webm", "mov", "m4v",
             "pdf", "ppt", "pptx", "txt", "md", "doc", "docx",
             "jpg", "jpeg", "png", "webp",
-            "csv", "xls", "xlsx", "zip"
+            "csv", "xls", "xlsx", "zip", "vtt"
     );
     private static final Map<String, Integer> RESOURCE_TYPE_BY_EXTENSION = Map.ofEntries(
             Map.entry("mp4", 1),
@@ -52,7 +52,9 @@ public class CourseResourceStorageServiceImpl implements CourseResourceStorageSe
             Map.entry("csv", 4),
             Map.entry("xls", 4),
             Map.entry("xlsx", 4),
-            Map.entry("zip", 4)
+            Map.entry("zip", 4),
+            // Keep subtitles in the existing generic-file type for database compatibility.
+            Map.entry("vtt", 4)
     );
 
     private final Path uploadRoot;

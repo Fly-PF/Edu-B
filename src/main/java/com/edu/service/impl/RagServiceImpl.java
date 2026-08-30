@@ -42,6 +42,7 @@ import com.edu.util.PptTextExtractUtil;
 import com.edu.util.SecurityUtil;
 import com.edu.util.TextEmbeddingUtil;
 import com.edu.util.TxtTextExtractUtil;
+import com.edu.util.VttTextExtractUtil;
 import com.edu.util.WordTextExtractUtil;
 import io.micrometer.observation.ObservationRegistry;
 import io.minio.GetObjectArgs;
@@ -123,7 +124,7 @@ public class RagServiceImpl implements RagService {
             """;
     private static final Set<String> COVER_ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "jpg", "jpeg", "png", "webp", "pdf", "ppt", "pptx", "txt", "md", "docx", "doc");
+            "jpg", "jpeg", "png", "webp", "pdf", "ppt", "pptx", "txt", "md", "docx", "doc", "vtt");
     private static final Map<String, Set<String>> ALLOWED_CONTENT_TYPES = Map.ofEntries(
             Map.entry("jpg", Set.of("image/jpeg")),
             Map.entry("jpeg", Set.of("image/jpeg")),
@@ -135,7 +136,8 @@ public class RagServiceImpl implements RagService {
             Map.entry("txt", Set.of("text/plain")),
             Map.entry("md", Set.of("text/markdown", "text/x-markdown", "text/plain")),
             Map.entry("docx", Set.of("application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
-            Map.entry("doc", Set.of("application/msword")));
+            Map.entry("doc", Set.of("application/msword")),
+            Map.entry("vtt", Set.of("text/vtt", "text/plain", "application/octet-stream")));
 
     private final AIModelProperties aiModelProperties;
     private final MinioProperties minioProperties;
@@ -150,6 +152,7 @@ public class RagServiceImpl implements RagService {
     private final PdfTextExtractUtil pdfTextExtractUtil;
     private final PptTextExtractUtil pptTextExtractUtil;
     private final TxtTextExtractUtil txtTextExtractUtil;
+    private final VttTextExtractUtil vttTextExtractUtil;
     private final MdTextExtractUtil mdTextExtractUtil;
     private final WordTextExtractUtil wordTextExtractUtil;
     private final ImageTextExtractUtil imageTextExtractUtil;
@@ -1669,7 +1672,7 @@ public class RagServiceImpl implements RagService {
 
         String extension = getExtension(file);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new BaseException(HttpStatus.BAD_REQUEST, "仅支持jpg、jpeg、png、webp、pdf、ppt、pptx、txt、md、docx、doc格式文件");
+            throw new BaseException(HttpStatus.BAD_REQUEST, "仅支持jpg、jpeg、png、webp、pdf、ppt、pptx、txt、md、docx、doc、vtt格式文件");
         }
 
         String contentType = file.getContentType();
@@ -1699,6 +1702,7 @@ public class RagServiceImpl implements RagService {
                 case "pdf" -> pdfTextExtractUtil.extract(inputStream);
                 case "ppt", "pptx" -> pptTextExtractUtil.extract(inputStream);
                 case "txt" -> txtTextExtractUtil.extract(inputStream);
+                case "vtt" -> vttTextExtractUtil.extract(inputStream);
                 case "md" -> mdTextExtractUtil.extract(inputStream);
                 case "docx", "doc" -> wordTextExtractUtil.extract(inputStream, extension);
                 default -> throw new BaseException(HttpStatus.BAD_REQUEST, "暂不支持该文件文本提取");
