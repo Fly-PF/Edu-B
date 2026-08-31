@@ -55,7 +55,9 @@ public class GovMaterialServiceImpl implements GovMaterialService {
     public List<GovMaterialVO> listPublishedMaterials(Long categoryId) {
         List<EduGovMaterialCategoryPO> enabledCategories = categoryMapper.selectList(new LambdaQueryWrapper<EduGovMaterialCategoryPO>()
                 .eq(EduGovMaterialCategoryPO::getDeleted, 0)
-                .eq(EduGovMaterialCategoryPO::getStatus, 1));
+                .eq(EduGovMaterialCategoryPO::getStatus, 1)
+                .orderByDesc(EduGovMaterialCategoryPO::getSortOrder)
+                .orderByDesc(EduGovMaterialCategoryPO::getCreateTime));
         if (enabledCategories.isEmpty()) {
             return List.of();
         }
@@ -66,7 +68,7 @@ public class GovMaterialServiceImpl implements GovMaterialService {
                 .eq(EduGovMaterialPO::getDeleted, 0)
                 .eq(EduGovMaterialPO::getStatus, 1)
                 .in(EduGovMaterialPO::getCategoryId, enabledCategories.stream().map(EduGovMaterialCategoryPO::getId).toList())
-                .orderByAsc(EduGovMaterialPO::getSortOrder)
+                .orderByDesc(EduGovMaterialPO::getSortOrder)
                 .orderByDesc(EduGovMaterialPO::getCreateTime);
         if (categoryId != null) {
             wrapper.eq(EduGovMaterialPO::getCategoryId, categoryId);
@@ -82,13 +84,15 @@ public class GovMaterialServiceImpl implements GovMaterialService {
         PageQuery pageQuery = PageQuery.of(pageNum, pageSize);
 
         List<EduGovMaterialCategoryPO> categories = categoryMapper.selectList(new LambdaQueryWrapper<EduGovMaterialCategoryPO>()
-                .eq(EduGovMaterialCategoryPO::getDeleted, 0));
+                .eq(EduGovMaterialCategoryPO::getDeleted, 0)
+                .orderByDesc(EduGovMaterialCategoryPO::getSortOrder)
+                .orderByDesc(EduGovMaterialCategoryPO::getCreateTime));
         Map<Long, String> categoryNameMap = categories.stream()
                 .collect(Collectors.toMap(EduGovMaterialCategoryPO::getId, EduGovMaterialCategoryPO::getName));
 
         LambdaQueryWrapper<EduGovMaterialPO> wrapper = new LambdaQueryWrapper<EduGovMaterialPO>()
                 .eq(EduGovMaterialPO::getDeleted, 0)
-                .orderByAsc(EduGovMaterialPO::getSortOrder)
+                .orderByDesc(EduGovMaterialPO::getSortOrder)
                 .orderByDesc(EduGovMaterialPO::getCreateTime);
         if (categoryId != null) {
             wrapper.eq(EduGovMaterialPO::getCategoryId, categoryId);

@@ -31,7 +31,7 @@ public class GovMaterialCategoryServiceImpl implements GovMaterialCategoryServic
         return categoryMapper.selectList(new LambdaQueryWrapper<EduGovMaterialCategoryPO>()
                         .eq(EduGovMaterialCategoryPO::getDeleted, 0)
                         .eq(EduGovMaterialCategoryPO::getStatus, 1)
-                        .orderByAsc(EduGovMaterialCategoryPO::getSortOrder)
+                        .orderByDesc(EduGovMaterialCategoryPO::getSortOrder)
                         .orderByDesc(EduGovMaterialCategoryPO::getCreateTime))
                 .stream()
                 .map(this::toView)
@@ -42,7 +42,7 @@ public class GovMaterialCategoryServiceImpl implements GovMaterialCategoryServic
     public List<GovMaterialCategoryVO> listAllCategories() {
         return categoryMapper.selectList(new LambdaQueryWrapper<EduGovMaterialCategoryPO>()
                         .eq(EduGovMaterialCategoryPO::getDeleted, 0)
-                        .orderByAsc(EduGovMaterialCategoryPO::getSortOrder)
+                        .orderByDesc(EduGovMaterialCategoryPO::getSortOrder)
                         .orderByDesc(EduGovMaterialCategoryPO::getCreateTime))
                 .stream()
                 .map(this::toView)
