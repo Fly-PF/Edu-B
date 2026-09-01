@@ -277,8 +277,9 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
         EvidenceResult evidenceResult = evaluateEvidence(request, inputText, outputText, metadata);
         hits.addAll(analyzeEvidenceRisk(evidenceResult, request));
 
-        List<RuleHit> mergedHits = deduplicateHits(hits);
+        List<RuleHit> mergedHits = new ArrayList<>(deduplicateHits(hits));
         mergedHits = filterTeacherCheatingHits(request, mergedHits);
+        mergedHits = new ArrayList<>(mergedHits);
         mergedHits.sort(primaryHitComparator().reversed());
 
         RuleHit primaryHit = mergedHits.isEmpty() ? null : mergedHits.get(0);
@@ -769,12 +770,15 @@ public class SafetyGatewayServiceImpl implements SafetyGatewayService {
     }
 
     private List<RuleHit> filterTeacherCheatingHits(SafetyGatewayRequest request, List<RuleHit> hits) {
-        if (request == null || request.getUserRole() == SafetyUserRole.STUDENT || hits == null || hits.isEmpty()) {
-            return hits;
+        if (hits == null || hits.isEmpty()) {
+            return new ArrayList<>();
+        }
+        if (request == null || request.getUserRole() == SafetyUserRole.STUDENT) {
+            return new ArrayList<>(hits);
         }
         return hits.stream()
                 .filter(hit -> hit.riskType() != SafetyRiskType.CHEATING)
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private RuleHit strongerHit(RuleHit first, RuleHit second) {
