@@ -683,11 +683,15 @@ public class LearningAnalysisServiceImpl implements LearningAnalysisService {
                             .practiceTitle(detail.getTitle())
                             .courseName(detail.getCourseName())
                             .questionId(question.getId())
+                            .questionType(question.getType())
                             .content(question.getContent())
+                            .options(question.getOptions())
                             .score(question.getScore())
                             .awardedScore(question.getAwardedScore())
+                            .studentAnswer(question.getAnswer())
                             .referenceAnswer(question.getReferenceAnswer())
                             .explanation(question.getExplanation())
+                            .teacherFeedback(question.getTeacherFeedback())
                             .build();
                 })
                 .toList();

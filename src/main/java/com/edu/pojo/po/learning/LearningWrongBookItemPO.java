@@ -41,16 +41,42 @@ public class LearningWrongBookItemPO {
     @TableField("question_content")
     private String questionContent;
 
+    @TableField("question_type")
+    private String questionType;
+
+    @TableField("options_json")
+    private String optionsJson;
+
     @TableField("question_score")
     private Integer questionScore;
 
     @TableField("awarded_score")
     private Integer awardedScore;
 
+    @TableField("student_answer")
+    private String studentAnswer;
+
     @TableField("reference_answer")
     private String referenceAnswer;
 
     private String explanation;
+
+    @TableField("teacher_feedback")
+    private String teacherFeedback;
+
+    @TableField("wrong_reason")
+    private String wrongReason;
+
+    @TableField("retrain_count")
+    private Integer retrainCount;
+
+    private Integer mastered;
+
+    @TableField("last_retrain_answer")
+    private String lastRetrainAnswer;
+
+    @TableField("last_retrain_at")
+    private LocalDateTime lastRetrainAt;
 
     @TableField("created_at")
     private LocalDateTime createdAt;

@@ -2,6 +2,7 @@ package com.edu.service.learning;
 
 import com.edu.pojo.dto.learning.LearningWrongBookNameRequest;
 import com.edu.pojo.dto.learning.LearningWrongBookQuestionRequest;
+import com.edu.pojo.dto.learning.LearningWrongBookRetrainRequest;
 import com.edu.pojo.vo.learning.LearningWrongBookVO;
 
 import java.util.List;
@@ -18,4 +19,6 @@ public interface LearningWrongBookService {
     LearningWrongBookVO addQuestion(Long bookId, LearningWrongBookQuestionRequest request);
 
     void removeQuestion(Long bookId, Long practiceId, Long questionId);
+
+    LearningWrongBookVO.QuestionItem submitRetrain(Long bookId, Long itemId, LearningWrongBookRetrainRequest request);
 }

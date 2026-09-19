@@ -45,10 +45,14 @@ public class LearningPracticeEvidenceVO {
         private String practiceTitle;
         private String courseName;
         private Long questionId;
+        private String questionType;
         private String content;
+        private List<String> options;
         private Integer score;
         private Integer awardedScore;
+        private String studentAnswer;
         private String referenceAnswer;
         private String explanation;
+        private String teacherFeedback;
     }
 }

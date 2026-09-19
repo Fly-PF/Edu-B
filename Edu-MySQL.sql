@@ -1184,3 +1184,44 @@ CREATE TABLE edu_gov_material
     INDEX idx_gov_material_category_status (category_id, status, sort_order)
 ) COMMENT '考公网盘资料';
 
+CREATE TABLE IF NOT EXISTS edu_learning_wrong_book
+(
+    id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+    student_id BIGINT      NOT NULL COMMENT '学生ID',
+    name       VARCHAR(40) NOT NULL COMMENT '错题本名称',
+    sort_order INT         NOT NULL DEFAULT 0 COMMENT '展示排序',
+    created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_wrong_book_student_name (student_id, name),
+    INDEX idx_wrong_book_student (student_id)
+) COMMENT '学生自定义错题本';
+
+CREATE TABLE IF NOT EXISTS edu_learning_wrong_book_item
+(
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    book_id             BIGINT NOT NULL COMMENT '错题本ID',
+    student_id          BIGINT NOT NULL COMMENT '学生ID',
+    practice_id         BIGINT NOT NULL COMMENT '来源练习ID',
+    question_id         BIGINT NOT NULL COMMENT '来源题目ID',
+    practice_title      VARCHAR(255) NULL COMMENT '练习标题快照',
+    course_name         VARCHAR(255) NULL COMMENT '课程名称快照',
+    question_type       VARCHAR(20) NULL COMMENT 'SINGLE单选题 SHORT开放题',
+    question_content    TEXT NOT NULL COMMENT '题目内容快照',
+    options_json        TEXT NULL COMMENT '选择题选项JSON快照',
+    question_score      INT NULL COMMENT '题目满分',
+    awarded_score       INT NULL COMMENT '学生原得分',
+    student_answer      TEXT NULL COMMENT '学生原答案',
+    reference_answer    TEXT NULL COMMENT '参考答案',
+    explanation         TEXT NULL COMMENT '答案解析',
+    teacher_feedback    TEXT NULL COMMENT '教师逐题反馈',
+    wrong_reason        VARCHAR(100) NULL COMMENT '错因分类',
+    retrain_count       INT NOT NULL DEFAULT 0 COMMENT '重练次数',
+    mastered            TINYINT NOT NULL DEFAULT 0 COMMENT '0待复习 1已掌握',
+    last_retrain_answer TEXT NULL COMMENT '最近一次重练答案',
+    last_retrain_at     DATETIME NULL COMMENT '最近一次重练时间',
+    created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_wrong_book_question (book_id, practice_id, question_id),
+    INDEX idx_wrong_book_item_student (student_id),
+    INDEX idx_wrong_book_item_book (book_id)
+) COMMENT '错题本题目快照';
+

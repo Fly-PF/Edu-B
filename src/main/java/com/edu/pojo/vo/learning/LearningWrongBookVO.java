@@ -24,14 +24,24 @@ public class LearningWrongBookVO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class QuestionItem {
+        private Long id;
         private Long practiceId;
         private Long questionId;
         private String practiceTitle;
         private String courseName;
+        private String questionType;
         private String content;
+        private List<String> options;
         private Integer score;
         private Integer awardedScore;
+        private String studentAnswer;
         private String referenceAnswer;
         private String explanation;
+        private String teacherFeedback;
+        private String wrongReason;
+        private Integer retrainCount;
+        private Boolean mastered;
+        private String lastRetrainAnswer;
+        private LocalDateTime lastRetrainAt;
     }
 }

@@ -8,6 +8,7 @@ import com.edu.pojo.dto.learning.LearningPlanDecisionRequest;
 import com.edu.pojo.dto.learning.LearningPlanReviewRequest;
 import com.edu.pojo.dto.learning.LearningWrongBookNameRequest;
 import com.edu.pojo.dto.learning.LearningWrongBookQuestionRequest;
+import com.edu.pojo.dto.learning.LearningWrongBookRetrainRequest;
 import com.edu.pojo.vo.learning.LearningGrowthCaseVO;
 import com.edu.pojo.vo.learning.LearningAssistantReplyVO;
 import com.edu.pojo.vo.learning.LearningStudentGrowthVO;
@@ -132,6 +133,17 @@ public class LearningAnalysisController {
     ) {
         learningWrongBookService.removeQuestion(bookId, practiceId, questionId);
         return Result.setResult(HttpStatus.OK, "错题已移除", null);
+    }
+
+    @Operation(summary = "学生提交错题重练答案")
+    @PostMapping("/student/wrong-books/{bookId}/items/{itemId}/retrain")
+    public Result<LearningWrongBookVO.QuestionItem> submitWrongBookRetrain(
+            @PathVariable Long bookId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody LearningWrongBookRetrainRequest request
+    ) {
+        return Result.setResult(HttpStatus.OK, "重练结果已保存",
+                learningWrongBookService.submitRetrain(bookId, itemId, request));
     }
 
     @Operation(summary = "基于学习画像刷新AI课程推荐")

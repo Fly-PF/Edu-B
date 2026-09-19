@@ -1,12 +1,15 @@
 package com.edu.service.impl.learning;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.edu.exception.BaseException;
 import com.edu.mapper.learning.LearningWrongBookItemMapper;
 import com.edu.mapper.learning.LearningWrongBookMapper;
 import com.edu.pojo.dto.UserInfoDTO;
 import com.edu.pojo.dto.learning.LearningWrongBookNameRequest;
 import com.edu.pojo.dto.learning.LearningWrongBookQuestionRequest;
+import com.edu.pojo.dto.learning.LearningWrongBookRetrainRequest;
 import com.edu.pojo.po.learning.LearningWrongBookItemPO;
 import com.edu.pojo.po.learning.LearningWrongBookPO;
 import com.edu.pojo.vo.learning.LearningPracticeEvidenceVO;
@@ -35,6 +38,7 @@ public class LearningWrongBookServiceImpl implements LearningWrongBookService {
     private final LearningWrongBookMapper bookMapper;
     private final LearningWrongBookItemMapper itemMapper;
     private final LearningAnalysisService learningAnalysisService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<LearningWrongBookVO> listStudentBooks() {
@@ -128,11 +132,18 @@ public class LearningWrongBookServiceImpl implements LearningWrongBookService {
                     .questionId(question.getQuestionId())
                     .practiceTitle(question.getPracticeTitle())
                     .courseName(question.getCourseName())
+                    .questionType(question.getQuestionType())
                     .questionContent(question.getContent())
+                    .optionsJson(writeOptions(question.getOptions()))
                     .questionScore(question.getScore())
                     .awardedScore(question.getAwardedScore())
+                    .studentAnswer(question.getStudentAnswer())
                     .referenceAnswer(question.getReferenceAnswer())
                     .explanation(question.getExplanation())
+                    .teacherFeedback(question.getTeacherFeedback())
+                    .wrongReason(inferWrongReason(question))
+                    .retrainCount(0)
+                    .mastered(0)
                     .createdAt(LocalDateTime.now())
                     .build());
             book.setUpdatedAt(LocalDateTime.now());
@@ -153,6 +164,31 @@ public class LearningWrongBookServiceImpl implements LearningWrongBookService {
                 .eq(LearningWrongBookItemPO::getQuestionId, questionId));
         book.setUpdatedAt(LocalDateTime.now());
         bookMapper.updateById(book);
+    }
+
+    @Override
+    @Transactional
+    public LearningWrongBookVO.QuestionItem submitRetrain(
+            Long bookId,
+            Long itemId,
+            LearningWrongBookRetrainRequest request
+    ) {
+        UserInfoDTO student = requireStudent();
+        requireOwnedBook(bookId, student.getUserId());
+        LearningWrongBookItemPO item = itemMapper.selectOne(new LambdaQueryWrapper<LearningWrongBookItemPO>()
+                .eq(LearningWrongBookItemPO::getId, itemId)
+                .eq(LearningWrongBookItemPO::getBookId, bookId)
+                .eq(LearningWrongBookItemPO::getStudentId, student.getUserId()));
+        if (item == null) throw new BaseException(HttpStatus.NOT_FOUND, "错题记录不存在");
+
+        String answer = request.getAnswer().trim();
+        boolean mastered = answersMatch(item.getQuestionType(), answer, item.getReferenceAnswer());
+        item.setLastRetrainAnswer(answer);
+        item.setLastRetrainAt(LocalDateTime.now());
+        item.setRetrainCount((item.getRetrainCount() == null ? 0 : item.getRetrainCount()) + 1);
+        item.setMastered(mastered ? 1 : 0);
+        itemMapper.updateById(item);
+        return toQuestionItem(item);
     }
 
     private List<LearningPracticeEvidenceVO.WrongQuestion> currentWrongQuestions() {
@@ -196,17 +232,7 @@ public class LearningWrongBookServiceImpl implements LearningWrongBookService {
 
     private LearningWrongBookVO toView(LearningWrongBookPO book, List<LearningWrongBookItemPO> items) {
         List<LearningWrongBookVO.QuestionItem> questions = items.stream()
-                .map(item -> LearningWrongBookVO.QuestionItem.builder()
-                        .practiceId(item.getPracticeId())
-                        .questionId(item.getQuestionId())
-                        .practiceTitle(item.getPracticeTitle())
-                        .courseName(item.getCourseName())
-                        .content(item.getQuestionContent())
-                        .score(item.getQuestionScore())
-                        .awardedScore(item.getAwardedScore())
-                        .referenceAnswer(item.getReferenceAnswer())
-                        .explanation(item.getExplanation())
-                        .build())
+                .map(this::toQuestionItem)
                 .toList();
         return LearningWrongBookVO.builder()
                 .id(book.getId())
@@ -215,6 +241,71 @@ public class LearningWrongBookServiceImpl implements LearningWrongBookService {
                 .updatedAt(book.getUpdatedAt())
                 .questions(questions)
                 .build();
+    }
+
+    private LearningWrongBookVO.QuestionItem toQuestionItem(LearningWrongBookItemPO item) {
+        return LearningWrongBookVO.QuestionItem.builder()
+                .id(item.getId())
+                .practiceId(item.getPracticeId())
+                .questionId(item.getQuestionId())
+                .practiceTitle(item.getPracticeTitle())
+                .courseName(item.getCourseName())
+                .questionType(item.getQuestionType())
+                .content(item.getQuestionContent())
+                .options(readOptions(item.getOptionsJson()))
+                .score(item.getQuestionScore())
+                .awardedScore(item.getAwardedScore())
+                .studentAnswer(item.getStudentAnswer())
+                .referenceAnswer(item.getReferenceAnswer())
+                .explanation(item.getExplanation())
+                .teacherFeedback(item.getTeacherFeedback())
+                .wrongReason(item.getWrongReason())
+                .retrainCount(item.getRetrainCount() == null ? 0 : item.getRetrainCount())
+                .mastered(Integer.valueOf(1).equals(item.getMastered()))
+                .lastRetrainAnswer(item.getLastRetrainAnswer())
+                .lastRetrainAt(item.getLastRetrainAt())
+                .build();
+    }
+
+    private String inferWrongReason(LearningPracticeEvidenceVO.WrongQuestion question) {
+        if (question.getTeacherFeedback() != null && !question.getTeacherFeedback().isBlank()) {
+            return "答题方法需要改进";
+        }
+        return "SINGLE".equalsIgnoreCase(question.getQuestionType()) ? "知识点未掌握" : "审题或表达不完整";
+    }
+
+    private boolean answersMatch(String questionType, String answer, String referenceAnswer) {
+        if (referenceAnswer == null || referenceAnswer.isBlank()) return false;
+        if ("SINGLE".equalsIgnoreCase(questionType)) {
+            return normalizeChoice(answer).equals(normalizeChoice(referenceAnswer));
+        }
+        return answer.replaceAll("\\s+", "").equalsIgnoreCase(referenceAnswer.replaceAll("\\s+", ""));
+    }
+
+    private String normalizeChoice(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase();
+        if (normalized.matches("[1-4]")) {
+            return String.valueOf((char) ('A' + Integer.parseInt(normalized) - 1));
+        }
+        return normalized;
+    }
+
+    private String writeOptions(List<String> options) {
+        if (options == null || options.isEmpty()) return null;
+        try {
+            return objectMapper.writeValueAsString(options);
+        } catch (Exception exception) {
+            throw new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "题目选项保存失败");
+        }
+    }
+
+    private List<String> readOptions(String optionsJson) {
+        if (optionsJson == null || optionsJson.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(optionsJson, new TypeReference<>() {});
+        } catch (Exception exception) {
+            return List.of();
+        }
     }
 
     private UserInfoDTO requireStudent() {

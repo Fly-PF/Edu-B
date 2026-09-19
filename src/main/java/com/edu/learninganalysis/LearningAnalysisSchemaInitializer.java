@@ -131,17 +131,49 @@ public class LearningAnalysisSchemaInitializer {
                     question_id BIGINT NOT NULL,
                     practice_title VARCHAR(255) NULL,
                     course_name VARCHAR(255) NULL,
+                    question_type VARCHAR(20) NULL,
                     question_content TEXT NOT NULL,
+                    options_json TEXT NULL,
                     question_score INT NULL,
                     awarded_score INT NULL,
+                    student_answer TEXT NULL,
                     reference_answer TEXT NULL,
                     explanation TEXT NULL,
+                    teacher_feedback TEXT NULL,
+                    wrong_reason VARCHAR(100) NULL,
+                    retrain_count INT NOT NULL DEFAULT 0,
+                    mastered TINYINT NOT NULL DEFAULT 0,
+                    last_retrain_answer TEXT NULL,
+                    last_retrain_at DATETIME NULL,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE KEY uk_wrong_book_question (book_id, practice_id, question_id),
                     INDEX idx_wrong_book_item_student (student_id),
                     INDEX idx_wrong_book_item_book (book_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='错题本题目快照'
                 """);
+        ensureColumn("question_type", "VARCHAR(20) NULL AFTER course_name");
+        ensureColumn("options_json", "TEXT NULL AFTER question_content");
+        ensureColumn("student_answer", "TEXT NULL AFTER awarded_score");
+        ensureColumn("teacher_feedback", "TEXT NULL AFTER explanation");
+        ensureColumn("wrong_reason", "VARCHAR(100) NULL AFTER teacher_feedback");
+        ensureColumn("retrain_count", "INT NOT NULL DEFAULT 0 AFTER wrong_reason");
+        ensureColumn("mastered", "TINYINT NOT NULL DEFAULT 0 AFTER retrain_count");
+        ensureColumn("last_retrain_answer", "TEXT NULL AFTER mastered");
+        ensureColumn("last_retrain_at", "DATETIME NULL AFTER last_retrain_answer");
         log.info("Learning-growth schema is ready");
+    }
+
+    private void ensureColumn(String columnName, String definition) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'edu_learning_wrong_book_item'
+                  AND column_name = ?
+                """, Integer.class, columnName);
+        if (count != null && count == 0) {
+            jdbcTemplate.execute("ALTER TABLE edu_learning_wrong_book_item ADD COLUMN "
+                    + columnName + " " + definition);
+        }
     }
 }
