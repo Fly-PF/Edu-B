@@ -1225,3 +1225,97 @@ CREATE TABLE IF NOT EXISTS edu_learning_wrong_book_item
     INDEX idx_wrong_book_item_book (book_id)
 ) COMMENT '错题本题目快照';
 
+-- AI Skill 技能市场与调用中心
+CREATE TABLE IF NOT EXISTS edu_ai_skill
+(
+    id               BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Skill主键ID',
+    user_id          BIGINT       NOT NULL COMMENT '创建者用户ID',
+    skill_name       VARCHAR(255) NOT NULL COMMENT 'Skill名称',
+    description      TEXT COMMENT 'Skill简介',
+    skill_type       VARCHAR(50)  NOT NULL COMMENT '技能类型：TEACHING_METHOD/ANSWER_STEPS/GRADING_STANDARD/STUDY_PLAN/OTHER',
+    subject_type     VARCHAR(80) COMMENT '学科类型',
+    target_audience  VARCHAR(120) COMMENT '适用人群',
+    usage_guide      TEXT COMMENT '使用方法',
+    example_input    TEXT COMMENT '示例输入',
+    example_output   TEXT COMMENT '示例效果',
+    visibility       VARCHAR(20)  NOT NULL DEFAULT 'PRIVATE' COMMENT '可见性：PRIVATE私有/PUBLIC公开',
+    status           VARCHAR(20)  NOT NULL DEFAULT 'DRAFT' COMMENT '状态：DRAFT草稿/PUBLISHED已发布/OFFLINE已下线',
+    review_status    VARCHAR(20)  NOT NULL DEFAULT 'APPROVED' COMMENT '内容检查状态：APPROVED通过/REJECTED拒绝',
+    review_message   VARCHAR(500) COMMENT '内容检查说明',
+    root_object_path VARCHAR(512) NOT NULL COMMENT 'MinIO根对象路径',
+    deleted          TINYINT      NOT NULL DEFAULT 0 COMMENT '0未删除 1已删除',
+    create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_ai_skill_user (user_id),
+    INDEX idx_ai_skill_market (status, visibility, review_status, deleted),
+    INDEX idx_ai_skill_filter (skill_type, subject_type, target_audience)
+) COMMENT 'AI Skill主表';
+
+CREATE TABLE IF NOT EXISTS edu_ai_skill_category
+(
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '分类ID',
+    category_type VARCHAR(20)  NOT NULL COMMENT '分类大类：SUBJECT学科/AUDIENCE受众/OTHER其他',
+    category_name VARCHAR(255) NOT NULL COMMENT '分类名称',
+    sort          INT          NOT NULL DEFAULT 0 COMMENT '排序号',
+    enabled       TINYINT      NOT NULL DEFAULT 1 COMMENT '0禁用 1启用',
+    deleted       TINYINT      NOT NULL DEFAULT 0 COMMENT '0未删除 1已删除',
+    create_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ai_skill_category_name (category_type, category_name, deleted),
+    INDEX idx_ai_skill_category_type (category_type, enabled, deleted)
+) COMMENT 'AI Skill分类表';
+
+CREATE TABLE IF NOT EXISTS edu_ai_skill_category_rel
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    skill_id    BIGINT   NOT NULL COMMENT 'Skill主键ID',
+    category_id BIGINT   NOT NULL COMMENT '分类ID',
+    deleted     TINYINT  NOT NULL DEFAULT 0 COMMENT '0未删除 1已删除',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ai_skill_category_rel (skill_id, category_id, deleted),
+    INDEX idx_ai_skill_category_rel_skill (skill_id),
+    INDEX idx_ai_skill_category_rel_category (category_id)
+) COMMENT 'AI Skill分类关联表';
+
+CREATE TABLE IF NOT EXISTS edu_ai_skill_collection
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     BIGINT   NOT NULL COMMENT '收藏用户ID',
+    skill_id    BIGINT   NOT NULL COMMENT 'Skill主键ID',
+    deleted     TINYINT  NOT NULL DEFAULT 0 COMMENT '0未删除 1已删除',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ai_skill_collection_user_skill (user_id, skill_id, deleted),
+    INDEX idx_ai_skill_collection_user (user_id),
+    INDEX idx_ai_skill_collection_skill (skill_id)
+) COMMENT 'AI Skill收藏表';
+
+CREATE TABLE IF NOT EXISTS edu_ai_skill_call_log
+(
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+    skill_id      BIGINT       NOT NULL COMMENT 'Skill主键ID',
+    user_id       BIGINT       NOT NULL COMMENT '调用用户ID',
+    source_module VARCHAR(80) COMMENT '来源模块',
+    input_text    LONGTEXT COMMENT '调用输入',
+    output_text   LONGTEXT COMMENT '调用输出或组装结果',
+    success       TINYINT      NOT NULL DEFAULT 1 COMMENT '0失败 1成功',
+    error_message VARCHAR(500) COMMENT '失败原因',
+    create_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ai_skill_call_log_skill (skill_id),
+    INDEX idx_ai_skill_call_log_user_time (user_id, create_time)
+) COMMENT 'AI Skill调用日志表';
+
+INSERT IGNORE INTO edu_ai_skill_category (category_type, category_name, sort, enabled, deleted)
+VALUES ('SUBJECT', '语文', 10, 1, 0),
+       ('SUBJECT', '数学', 20, 1, 0),
+       ('SUBJECT', '英语', 30, 1, 0),
+       ('SUBJECT', '考公', 40, 1, 0),
+       ('AUDIENCE', '学生', 10, 1, 0),
+       ('AUDIENCE', '教师', 20, 1, 0),
+       ('AUDIENCE', '管理员', 30, 1, 0),
+       ('OTHER', '讲题方法', 10, 1, 0),
+       ('OTHER', '答题步骤', 20, 1, 0),
+       ('OTHER', '批改标准', 30, 1, 0),
+       ('OTHER', '学习计划', 40, 1, 0);
+
