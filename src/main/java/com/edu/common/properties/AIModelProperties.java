@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "edu.ai-model")
 public class AIModelProperties {
     private Business rag = new Business();
+    private Business problemSolving = new Business();
     private Business teacherAi = new Business();
     private Business companion = new Business();
     private Business learningAnalysis = new Business();

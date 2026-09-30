@@ -3,16 +3,16 @@ custom:
     public-base-url: http://localhost:8080
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    host: ${EDU_MYSQL_HOST:127.0.0.1}
-    port: ${EDU_MYSQL_PORT:3306}
-    database: ${EDU_MYSQL_DATABASE:edu}
-    username: ${EDU_MYSQL_USERNAME:root}
-    password: ${EDU_MYSQL_PASSWORD:admin}
+    host: 192.168.40.135
+    port: 3306
+    database: edu
+    username: root
+    password: root
   redis:
-    host: ${EDU_REDIS_HOST:127.0.0.1}
-    port: ${EDU_REDIS_PORT:6379}
-    password: ${EDU_REDIS_PASSWORD:}
-    database: ${EDU_REDIS_DATABASE:6}
+    host: 192.168.40.135
+    port: 6379
+    password: root
+    database: 6
   minio:
     endpoint: http://192.168.40.135:9000
     access_key: root
@@ -47,6 +47,14 @@ custom:
         api-key: ${OPENAI_API_KEY}
         model-type: textembedmodel
         model-name: qwen3.7-text-embedding
+
+    problem-solving:
+      chat-model:
+        supplier: ${custom.ai-model.rag.chat-model.supplier}
+        base-url: ${custom.ai-model.rag.chat-model.base-url}
+        api-key: ${custom.ai-model.rag.chat-model.api-key}
+        model-type: ${custom.ai-model.rag.chat-model.model-type}
+        model-name: ${custom.ai-model.rag.chat-model.model-name}
 
     teacher-ai:
       chat-model:

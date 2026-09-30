@@ -27,6 +27,7 @@ import com.edu.pojo.po.skill.AiSkillPO;
 import com.edu.pojo.vo.skill.AiSkillCategoryVO;
 import com.edu.pojo.vo.skill.AiSkillFileVO;
 import com.edu.pojo.vo.skill.AiSkillInvokeVO;
+import com.edu.pojo.vo.skill.AiSkillPracticeOptionVO;
 import com.edu.pojo.vo.skill.AiSkillVO;
 import com.edu.repository.SysUserRepository;
 import com.edu.service.AiSkillService;
@@ -382,6 +383,49 @@ public class AiSkillServiceImpl implements AiSkillService {
     }
 
     @Override
+    public List<AiSkillPracticeOptionVO> listPracticeAvailableSkills(String keyword) {
+        UserInfoDTO user = requireUser();
+        String normalizedKeyword = trimToNull(keyword);
+        List<AiSkillPO> ownSkills = skillMapper.selectList(new LambdaQueryWrapper<AiSkillPO>()
+                .eq(AiSkillPO::getUserId, user.getUserId())
+                .eq(AiSkillPO::getDeleted, 0)
+                .eq(AiSkillPO::getStatus, STATUS_PUBLISHED)
+                .eq(AiSkillPO::getReviewStatus, REVIEW_APPROVED)
+                .and(normalizedKeyword != null, q -> q.like(AiSkillPO::getSkillName, normalizedKeyword)
+                        .or().like(AiSkillPO::getDescription, normalizedKeyword))
+                .orderByDesc(AiSkillPO::getUpdateTime));
+        List<Long> collectedIds = collectionMapper.selectList(new LambdaQueryWrapper<AiSkillCollectionPO>()
+                        .eq(AiSkillCollectionPO::getUserId, user.getUserId())
+                        .eq(AiSkillCollectionPO::getDeleted, 0))
+                .stream().map(AiSkillCollectionPO::getSkillId).distinct().toList();
+        List<AiSkillPO> collectedSkills = collectedIds.isEmpty() ? List.of() : skillMapper.selectList(baseVisibleMarketWrapper(
+                normalizedKeyword, null, null, null).in(AiSkillPO::getId, collectedIds));
+        List<AiSkillPracticeOptionVO> result = new ArrayList<>();
+        ownSkills.forEach(skill -> result.add(toPracticeOption(skill, "MY")));
+        collectedSkills.stream().filter(skill -> !Objects.equals(skill.getUserId(), user.getUserId()))
+                .forEach(skill -> result.add(toPracticeOption(skill, "COLLECTION")));
+        return result;
+    }
+
+    @Override
+    public String loadPracticeSkillPrompt(Long skillId) {
+        UserInfoDTO user = requireUser();
+        AiSkillPO skill = requirePracticeAvailableSkill(skillId, user);
+        List<AiSkillFileVO> files = readFiles(skill.getRootObjectPath(), true);
+        AiSkillFileVO skillFile = files.stream()
+                .filter(file -> "SKILL.md".equals(file.getFileName()) && !Boolean.TRUE.equals(file.getIsInReferences()))
+                .findFirst()
+                .orElseThrow(() -> new BaseException(HttpStatus.INTERNAL_SERVER_ERROR, "Skill缺少SKILL.md"));
+        StringBuilder prompt = new StringBuilder("【讲题Skill：").append(skill.getSkillName()).append("】\n")
+                .append("【SKILL.md】\n").append(skillFile.getContent()).append('\n');
+        files.stream().filter(file -> Boolean.TRUE.equals(file.getIsInReferences()))
+                .sorted(Comparator.comparing(AiSkillFileVO::getFileName))
+                .forEach(file -> prompt.append("\n【references/").append(file.getFileName()).append("】\n")
+                        .append(file.getContent()).append('\n'));
+        return prompt.toString();
+    }
+
+    @Override
     public List<AiSkillCategoryVO> listCategories(String categoryType, Boolean enabledOnly) {
         LambdaQueryWrapper<AiSkillCategoryPO> wrapper = new LambdaQueryWrapper<AiSkillCategoryPO>()
                 .eq(AiSkillCategoryPO::getDeleted, 0)
@@ -457,6 +501,24 @@ public class AiSkillServiceImpl implements AiSkillService {
         throw new BaseException(HttpStatus.FORBIDDEN, "无权访问该Skill");
     }
 
+    private AiSkillPO requirePracticeAvailableSkill(Long skillId, UserInfoDTO user) {
+        AiSkillPO skill = requireSkill(skillId);
+        if (!STATUS_PUBLISHED.equals(skill.getStatus()) || !REVIEW_APPROVED.equals(skill.getReviewStatus())) {
+            throw new BaseException(HttpStatus.FORBIDDEN, "该Skill当前不可使用");
+        }
+        if (isOwner(skill, user)) {
+            return skill;
+        }
+        boolean collected = collectionMapper.selectCount(new LambdaQueryWrapper<AiSkillCollectionPO>()
+                .eq(AiSkillCollectionPO::getUserId, user.getUserId())
+                .eq(AiSkillCollectionPO::getSkillId, skillId)
+                .eq(AiSkillCollectionPO::getDeleted, 0)) > 0;
+        if (collected && isPublicPublished(skill)) {
+            return skill;
+        }
+        throw new BaseException(HttpStatus.FORBIDDEN, "仅可使用自己创建或已收藏的公开Skill");
+    }
+
     private AiSkillPO requirePublicPublishedSkill(Long skillId) {
         AiSkillPO skill = requireSkill(skillId);
         if (!isPublicPublished(skill)) {
@@ -484,6 +546,15 @@ public class AiSkillServiceImpl implements AiSkillService {
             throw new BaseException(HttpStatus.NOT_FOUND, "Skill不存在");
         }
         return skill;
+    }
+
+    private AiSkillPracticeOptionVO toPracticeOption(AiSkillPO skill, String source) {
+        return AiSkillPracticeOptionVO.builder()
+                .id(skill.getId())
+                .skillName(skill.getSkillName())
+                .description(skill.getDescription())
+                .source(source)
+                .build();
     }
 
     private UserInfoDTO requireUser() {

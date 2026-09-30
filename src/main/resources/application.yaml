@@ -14,7 +14,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/learning-practice.sql,classpath:db/course-knowledge-base.sql,classpath:db/course-study-progress.sql,classpath:db/safety-record.sql
+      schema-locations: classpath:db/learning-practice.sql,classpath:db/course-knowledge-base.sql,classpath:db/course-study-progress.sql,classpath:db/safety-record.sql,classpath:db/problem-solving.sql
   servlet:
     multipart:
       max-file-size: 1GB
@@ -122,6 +122,13 @@ edu:
         api-key: ${custom.ai-model.rag.embedding-model.api-key}
         model-type: ${custom.ai-model.rag.embedding-model.model-type}
         model-name: ${custom.ai-model.rag.embedding-model.model-name}
+    problem-solving:
+      chat-model:
+        supplier: ${custom.ai-model.problem-solving.chat-model.supplier}
+        base-url: ${custom.ai-model.problem-solving.chat-model.base-url}
+        api-key: ${custom.ai-model.problem-solving.chat-model.api-key}
+        model-type: ${custom.ai-model.problem-solving.chat-model.model-type}
+        model-name: ${custom.ai-model.problem-solving.chat-model.model-name}
     teacher-ai:
       chat-model:
         supplier: ${custom.ai-model.teacher-ai.chat-model.supplier}

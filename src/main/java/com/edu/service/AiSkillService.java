@@ -6,6 +6,7 @@ import com.edu.pojo.dto.skill.AiSkillInvokeRequest;
 import com.edu.pojo.dto.skill.AiSkillSaveRequest;
 import com.edu.pojo.vo.skill.AiSkillCategoryVO;
 import com.edu.pojo.vo.skill.AiSkillInvokeVO;
+import com.edu.pojo.vo.skill.AiSkillPracticeOptionVO;
 import com.edu.pojo.vo.skill.AiSkillVO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,6 +43,10 @@ public interface AiSkillService {
     ResponseEntity<byte[]> exportSkill(Long skillId);
 
     AiSkillInvokeVO invokeSkill(Long skillId, AiSkillInvokeRequest request);
+
+    List<AiSkillPracticeOptionVO> listPracticeAvailableSkills(String keyword);
+
+    String loadPracticeSkillPrompt(Long skillId);
 
     List<AiSkillCategoryVO> listCategories(String categoryType, Boolean enabledOnly);
 
