@@ -409,7 +409,12 @@ public class AiSkillServiceImpl implements AiSkillService {
 
     @Override
     public String loadPracticeSkillPrompt(Long skillId) {
-        UserInfoDTO user = requireUser();
+        return loadPracticeSkillPrompt(skillId, requireUser().getUserId());
+    }
+
+    @Override
+    public String loadPracticeSkillPrompt(Long skillId, Long userId) {
+        UserInfoDTO user = UserInfoDTO.builder().userId(userId).build();
         AiSkillPO skill = requirePracticeAvailableSkill(skillId, user);
         List<AiSkillFileVO> files = readFiles(skill.getRootObjectPath(), true);
         AiSkillFileVO skillFile = files.stream()

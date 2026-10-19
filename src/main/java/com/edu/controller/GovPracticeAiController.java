@@ -25,19 +25,20 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/gov/practice-ai")
-@PreAuthorize("hasAuthority('STUDENT')")
 @Tag(name = "考公练习AI讲题")
 public class GovPracticeAiController {
     private final GovPracticeAiService govPracticeAiService;
 
     @Operation(summary = "查询练习可用Skill")
     @GetMapping("/skills")
+    @PreAuthorize("hasAnyAuthority('STUDENT','TEACHER')")
     public Result<List<AiSkillPracticeOptionVO>> listSkills(@RequestParam(required = false) String keyword) {
         return Result.setResult(HttpStatus.OK, "查询成功", govPracticeAiService.listSkills(keyword));
     }
 
     @Operation(summary = "考公练习流式讲题")
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
+    @PreAuthorize("hasAuthority('STUDENT')")
     public Flux<ServerSentEvent<GovPracticeAiStreamVO>> chat(@RequestBody GovPracticeAiChatRequest request) {
         return govPracticeAiService.chat(request);
     }

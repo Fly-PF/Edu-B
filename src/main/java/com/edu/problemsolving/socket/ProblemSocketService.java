@@ -6,6 +6,7 @@ import com.edu.mapper.ProblemVersionMapper;
 import com.edu.pojo.po.problem.ProblemVersionPO;
 import com.edu.problemsolving.session.ProblemLessonSession;
 import com.edu.problemsolving.session.ProblemLessonSessionRegistry;
+import com.edu.service.AiSkillService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.observation.ObservationRegistry;
@@ -48,6 +49,7 @@ public class ProblemSocketService {
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
     private final AIModelProperties aiModelProperties;
+    private final AiSkillService aiSkillService;
 
     public void receive(String clientSessionId, ProblemSocketEvent event) {
         ProblemLessonSession session = lessonSessionRegistry.require(clientSessionId);
@@ -113,14 +115,18 @@ public class ProblemSocketService {
         List<String> drawTargets = drawTargetsForStep(definition, index);
         String drawActionKey = "draw-step-" + STEP_IDS.get(index);
         try {
-            String response = CompletableFuture.supplyAsync(() -> ChatClient.builder(buildChatModel()).build().prompt()
-                    .system("你是 AI 解题导师。当前只能讲解给定题目的第 " + (index + 1) + " 步。"
-                            + "只能使用题目事实，不能改写公式、答案或条件。若提供了视觉工具，必须调用一次绘制当前步骤后再回答；未提供时只输出文字。"
-                            + physicsDrawingInstruction(definition))
-                    .user("题面：" + string(definition.get("stem")) + "\n步骤：" + STEP_TITLES.get(index)
-                            + "\n题目事实：" + string(definition.get("facts")) + "\n请用简洁中文完成本步讲解。")
-                    .toolCallbacks(lessonDrawingTools(session, definition, eventId, drawActionKey, drawTargets).toArray(ToolCallback[]::new)).call().content())
-                    .get(12, TimeUnit.SECONDS);
+            String response = CompletableFuture.supplyAsync(() -> {
+                var prompt = ChatClient.builder(buildChatModel()).build().prompt()
+                        .system("你是 AI 解题导师。当前只能讲解给定题目的第 " + (index + 1) + " 步。"
+                                + "只能使用题目事实，不能改写公式、答案或条件。若提供了视觉工具，必须调用一次绘制当前步骤后再回答；未提供时只输出文字。"
+                                + physicsDrawingInstruction(definition))
+                        .user("题面：" + string(definition.get("stem")) + "\n步骤：" + STEP_TITLES.get(index)
+                                + "\n题目事实：" + string(definition.get("facts")) + "\n请用简洁中文完成本步讲解。");
+                if (supportsToolCalling()) {
+                    prompt.toolCallbacks(lessonDrawingTools(session, definition, eventId, drawActionKey, drawTargets).toArray(ToolCallback[]::new));
+                }
+                return prompt.call().content();
+            }).get(modelTimeout().toMillis(), TimeUnit.MILLISECONDS);
             if (StringUtils.hasText(response)) text = response;
         } catch (Exception ex) {
             log.warn("Problem-solving lesson fallback: clientSessionId={}, step={}", session.getClientSessionId(), index, ex);
@@ -165,26 +171,47 @@ public class ProblemSocketService {
         if (!StringUtils.hasText(event.getQuestion())) return;
         String eventId = StringUtils.hasText(event.getEventId()) ? event.getEventId() : UUID.randomUUID().toString();
         String question = event.getQuestion().trim();
+        String action = normalizeQuestionAction(event.getAction());
         int requestedStep = STEP_IDS.indexOf(event.getCardId());
         int stepIndex = requestedStep >= 0 && requestedStep <= session.getCompletedLessonStep()
                 ? requestedStep : Math.max(0, Math.min(session.getCurrentLessonStep(), STEP_IDS.size() - 1));
         String cardId = STEP_IDS.get(stepIndex);
+        if (action == null) {
+            rejectQuestion(session, cardId, eventId, question, "不支持的问答操作", "FREE_CHAT");
+            return;
+        }
+        if ("PRACTICE_ANSWER".equals(action) && (!StringUtils.hasText(event.getPracticeStem())
+                || event.getPracticeOptions() == null || event.getPracticeOptions().size() != 4
+                || !StringUtils.hasText(event.getPracticeAnswer())
+                || !Set.of("A", "B", "C", "D").contains(event.getPracticeAnswer()))) {
+            rejectQuestion(session, cardId, eventId, question, "练习题或作答结果无效", action);
+            return;
+        }
+        String skillPrompt = "";
+        if (event.getSkillId() != null) {
+            try {
+                skillPrompt = aiSkillService.loadPracticeSkillPrompt(event.getSkillId(), session.getUserId());
+            } catch (Exception ex) {
+                rejectQuestion(session, cardId, eventId, question, ex.getMessage() == null ? "当前 Skill 不可用。" : ex.getMessage(), action);
+                return;
+            }
+        }
         if (question.length() > MAX_QUESTION_LENGTH) {
-            rejectQuestion(session, cardId, eventId, question, "问题不能超过 " + MAX_QUESTION_LENGTH + " 个字符。");
+            rejectQuestion(session, cardId, eventId, question, "问题不能超过 " + MAX_QUESTION_LENGTH + " 个字符。", action);
             return;
         }
         synchronized (session) {
             long now = System.currentTimeMillis();
             if (session.isQuestionGenerating()) {
-                rejectQuestion(session, cardId, eventId, question, "上一轮追问仍在生成，请稍后再试。");
+                rejectQuestion(session, cardId, eventId, question, "上一轮追问仍在生成，请稍后再试。", action);
                 return;
             }
             if (now - session.getLastQuestionAt() < QUESTION_INTERVAL_MILLIS) {
-                rejectQuestion(session, cardId, eventId, question, "提问过于频繁，请稍后再试。");
+                rejectQuestion(session, cardId, eventId, question, "提问过于频繁，请稍后再试。", action);
                 return;
             }
             if (!QUESTION_PERMITS.tryAcquire()) {
-                rejectQuestion(session, cardId, eventId, question, "当前追问较多，请稍后再试。");
+                rejectQuestion(session, cardId, eventId, question, "当前追问较多，请稍后再试。", action);
                 return;
             }
             session.setQuestionGenerating(true);
@@ -194,50 +221,49 @@ public class ProblemSocketService {
         Map<String, Object> definition = definition(version);
         Map<String, Object> card = cards(definition.get("cards")).stream()
                 .filter(item -> string(item.get("id")).equals(cardId)).findFirst().orElse(Map.of());
-        String level = Set.of("basic", "sprint", "perfect").contains(event.getLevel()) ? event.getLevel() : "basic";
+        String level = StringUtils.hasText(event.getLevel()) && Set.of("basic", "sprint", "perfect").contains(event.getLevel())
+                ? event.getLevel() : "basic";
         String configuredFallback = string(map(card.get("explanations")).get(level));
         String fallback = StringUtils.hasText(configuredFallback) ? configuredFallback : fallback(definition, stepIndex);
+        String actionFallback = "VARIANT".equals(action) ? "未能生成变式题，请重新点击“举一反三”。"
+                : "PRACTICE_ANSWER".equals(action) ? "未能评价本次作答，请重新提交。" : fallback;
+        final String selectedSkillPrompt = skillPrompt;
         send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "start"));
+                "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "start", "action", action));
         CompletableFuture.runAsync(() -> {
             StringBuilder answer = new StringBuilder();
             try {
                 log.info("Problem-solving tutor started: clientSessionId={}, problemId={}, cardId={}", session.getClientSessionId(), session.getProblemId(), cardId);
                 ChatClient.builder(buildChatModel()).build().prompt()
-                        .system("你是 AI 解题导师。只能使用给定题面、标准答案、标准解析、当前步骤和审核讲解，不能修改公式、答案或条件。"
-                                + "需要图示时只能调用已提供的视觉工具，不能描述任何未调用的图形变化。"
-                                + physicsDrawingInstruction(definition)
-                                + "必须使用规范 Markdown：先用“## 结论”概括，再用“## 推导”列出有序步骤，每一步独立成行。"
-                                + "行内公式必须写成 $...$，独立公式必须单独一行写成 $$...$$；不得输出裸露的 LaTeX 命令（如 \\triangle、\\frac），不得重复公式、符号或文字。")
-                        .user(questionContext(definition, version, stepIndex, card, fallback, session, question))
-                        .toolCallbacks(visualTools(session, definition, eventId).toArray(ToolCallback[]::new))
+                        .system(questionSystemPrompt(action, selectedSkillPrompt))
+                        .user(questionContext(definition, version, stepIndex, card, fallback, session, question, action, event))
                         .stream().content()
                         .filter(StringUtils::hasText)
                         .doOnNext(chunk -> {
                             answer.append(chunk);
                             send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                                    "cardId", cardId, "question", question, "text", chunk, "turnId", eventId, "status", "stream"));
+                                    "cardId", cardId, "question", question, "text", chunk, "turnId", eventId, "status", "stream", "action", action));
                         })
-                        .blockLast(Duration.ofSeconds(45));
+                        .blockLast(modelTimeout());
                 if (!StringUtils.hasText(answer)) {
-                    answer.append(fallback);
+                    answer.append(actionFallback);
                     send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                            "cardId", cardId, "question", question, "text", fallback, "turnId", eventId, "status", "stream"));
+                            "cardId", cardId, "question", question, "text", actionFallback, "turnId", eventId, "status", "stream", "action", action));
                 }
                 recordQuestionAnswer(session, question, answer.toString());
                 send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                        "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "done"));
+                        "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "done", "action", action));
                 log.info("Problem-solving tutor completed: clientSessionId={}, problemId={}, cardId={}", session.getClientSessionId(), session.getProblemId(), cardId);
             } catch (Exception ex) {
                 log.warn("Problem-solving tutor fallback: clientSessionId={}", session.getClientSessionId(), ex);
                 if (!StringUtils.hasText(answer)) {
                     send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                            "cardId", cardId, "question", question, "text", fallback, "turnId", eventId, "status", "stream"));
-                    answer.append(fallback);
+                            "cardId", cardId, "question", question, "text", actionFallback, "turnId", eventId, "status", "stream", "action", action));
+                    answer.append(actionFallback);
                 }
                 recordQuestionAnswer(session, question, answer.toString());
                 send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                        "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "done"));
+                        "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "done", "action", action));
             } finally {
                 session.setQuestionGenerating(false);
                 QUESTION_PERMITS.release();
@@ -245,22 +271,54 @@ public class ProblemSocketService {
         });
     }
 
-    private void rejectQuestion(ProblemLessonSession session, String cardId, String eventId, String question, String message) {
+    private void rejectQuestion(ProblemLessonSession session, String cardId, String eventId, String question, String message, String action) {
         send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                "cardId", cardId, "question", question, "text", message, "turnId", eventId, "status", "stream"));
+                "cardId", cardId, "question", question, "text", message, "turnId", eventId, "status", "stream", "action", action));
         send(session, "narration", session.getSceneRevision(), session.getSceneRevision(), Map.of(
-                "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "done"));
+                "cardId", cardId, "question", question, "text", "", "turnId", eventId, "status", "done", "action", action));
     }
 
     private String questionContext(Map<String, Object> definition, ProblemVersionPO version, int stepIndex,
-                                   Map<String, Object> card, String fallback, ProblemLessonSession session, String question) {
+                                    Map<String, Object> card, String fallback, ProblemLessonSession session, String question,
+                                    String action, ProblemSocketEvent event) {
         String title = StringUtils.hasText(string(card.get("title"))) ? string(card.get("title")) : STEP_TITLES.get(stepIndex);
         return "【题面】\n" + string(definition.get("stem"))
                 + "\n【标准答案】\n" + string(version.getStandardAnswer())
                 + "\n【标准解析】\n" + string(version.getAnswerAnalysis())
                 + "\n【当前讲题步骤】\n第 " + (stepIndex + 1) + " 步：" + title
                 + "\n【本步审核讲解】\n" + fallback
-                + questionHistory(session) + "\n【学生问题】\n" + question;
+                + questionHistory(session) + practiceContext(action, event) + "\n【学生问题】\n" + question;
+    }
+
+    private String normalizeQuestionAction(String action) {
+        if (!StringUtils.hasText(action)) return "FREE_CHAT";
+        return Set.of("FREE_CHAT", "VARIANT", "PRACTICE_ANSWER").contains(action) ? action : null;
+    }
+
+    private String questionSystemPrompt(String action, String skillPrompt) {
+        String base = "你是 AI 解题导师。" + ("VARIANT".equals(action)
+                ? "请基于原题的知识点生成新的四选一练习题，不能泄露新题答案或解析。"
+                : "只能使用给定题面、标准答案、标准解析、当前步骤和审核讲解，不能修改公式、答案或条件。")
+                + "侧栏追问仅使用文字回答，绘图由讲题步骤同步处理。"
+                + "除变式题 JSON 外，必须使用规范 Markdown：标题必须单独占一行、# 后必须有空格且标题前后空行；每个列表项必须独立成行；行内公式用 $...$，独立公式单独用 $$...$$。"
+                + (StringUtils.hasText(skillPrompt) ? "\n必须遵循以下讲题 Skill 的方法和侧重点，但不得违反题面事实与上述约束：\n" + skillPrompt : "");
+        if ("VARIANT".equals(action)) {
+            return base + "\n只返回一个合法 JSON 对象，不要使用 Markdown 代码块或添加其他文字。"
+                    + "必须严格使用：{\"stem\":\"题干\",\"options\":[{\"key\":\"A\",\"value\":\"选项内容\"},{\"key\":\"B\",\"value\":\"选项内容\"},{\"key\":\"C\",\"value\":\"选项内容\"},{\"key\":\"D\",\"value\":\"选项内容\"}]}。"
+                    + "不得返回正确答案、解析、提示或 JSON 以外的内容。";
+        }
+        if ("PRACTICE_ANSWER".equals(action)) {
+            return base + "\n必须使用 Markdown 输出：先写“## 作答反馈”，再写“## 正确答案”“## 判断”“## 解析”。直接说明对错、正确选项及理由。";
+        }
+        return base + "\n必须使用规范 Markdown：先用“## 结论”概括，再用“## 推导”列出有序步骤，每一步独立成行。"
+                + "行内公式必须写成 $...$，独立公式必须单独一行写成 $$...$$；不得输出裸露的 LaTeX 命令（如 \\triangle、\\frac），不得重复公式、符号或文字。";
+    }
+
+    private String practiceContext(String action, ProblemSocketEvent event) {
+        if (!"PRACTICE_ANSWER".equals(action)) return "";
+        StringBuilder context = new StringBuilder("\n【本轮变式题】\n题干：").append(event.getPracticeStem()).append("\n选项：");
+        event.getPracticeOptions().forEach(option -> context.append("\n- ").append(option));
+        return context.append("\n学生作答：").append(event.getPracticeAnswer()).toString();
     }
 
     private String questionHistory(ProblemLessonSession session) {
@@ -593,6 +651,15 @@ public class ProblemSocketService {
         return OpenAiChatModel.builder().options(OpenAiChatOptions.builder().apiKey(model.getApiKey())
                         .baseUrl(model.getBaseUrl()).model(model.getModelName()).build())
                 .observationRegistry(ObservationRegistry.NOOP).build();
+    }
+
+    private Duration modelTimeout() {
+        Integer timeout = aiModelProperties.getProblemSolving().getChatModel().getTimeout();
+        return Duration.ofMillis(timeout == null || timeout < 1 ? 45_000 : timeout);
+    }
+
+    private boolean supportsToolCalling() {
+        return aiModelProperties.getProblemSolving().getChatModel().isToolCallingSupported();
     }
 
     @SuppressWarnings("unchecked")

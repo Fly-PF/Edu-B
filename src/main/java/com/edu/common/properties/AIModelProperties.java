@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "edu.ai-model")
 public class AIModelProperties {
     private Business rag = new Business();
+    private Business psDemo = new Business();
     private Business problemSolving = new Business();
     private Business teacherAi = new Business();
     private Business companion = new Business();
@@ -61,6 +62,7 @@ public class AIModelProperties {
         private Integer maxHistoryMessageCount;
         private Integer timeout;
         private Integer maxTokens;
+        private boolean toolCallingSupported;
     }
 
     public enum ModelType {

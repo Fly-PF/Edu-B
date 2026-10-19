@@ -48,6 +48,8 @@ public interface AiSkillService {
 
     String loadPracticeSkillPrompt(Long skillId);
 
+    String loadPracticeSkillPrompt(Long skillId, Long userId);
+
     List<AiSkillCategoryVO> listCategories(String categoryType, Boolean enabledOnly);
 
     AiSkillCategoryVO createCategory(AiSkillCategorySaveRequest request);

@@ -29,6 +29,8 @@ custom:
         api-key: ${OPENAI_API_KEY}
         model-type: multimodel
         model-name: gemini-3.7-flash
+        timeout: 90000
+        tool-calling-supported: false
       text-model:
         supplier: openai
         base-url: ${OPENAI_BASE_URL}
@@ -55,6 +57,18 @@ custom:
         api-key: ${custom.ai-model.rag.chat-model.api-key}
         model-type: ${custom.ai-model.rag.chat-model.model-type}
         model-name: ${custom.ai-model.rag.chat-model.model-name}
+        timeout: ${custom.ai-model.rag.chat-model.timeout}
+        tool-calling-supported: ${custom.ai-model.rag.chat-model.tool-calling-supported}
+
+    ps-demo:
+      chat-model:
+        supplier: ${custom.ai-model.rag.chat-model.supplier}
+        base-url: ${custom.ai-model.rag.chat-model.base-url}
+        api-key: ${custom.ai-model.rag.chat-model.api-key}
+        model-type: ${custom.ai-model.rag.chat-model.model-type}
+        model-name: ${custom.ai-model.rag.chat-model.model-name}
+        timeout: ${custom.ai-model.rag.chat-model.timeout}
+        tool-calling-supported: ${custom.ai-model.rag.chat-model.tool-calling-supported}
 
     teacher-ai:
       chat-model:

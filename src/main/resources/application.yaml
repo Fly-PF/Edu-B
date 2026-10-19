@@ -129,6 +129,17 @@ edu:
         api-key: ${custom.ai-model.problem-solving.chat-model.api-key}
         model-type: ${custom.ai-model.problem-solving.chat-model.model-type}
         model-name: ${custom.ai-model.problem-solving.chat-model.model-name}
+        timeout: ${custom.ai-model.problem-solving.chat-model.timeout:45000}
+        tool-calling-supported: ${custom.ai-model.problem-solving.chat-model.tool-calling-supported:false}
+    ps-demo:
+      chat-model:
+        supplier: ${custom.ai-model.ps-demo.chat-model.supplier}
+        base-url: ${custom.ai-model.ps-demo.chat-model.base-url}
+        api-key: ${custom.ai-model.ps-demo.chat-model.api-key}
+        model-type: ${custom.ai-model.ps-demo.chat-model.model-type}
+        model-name: ${custom.ai-model.ps-demo.chat-model.model-name}
+        timeout: ${custom.ai-model.ps-demo.chat-model.timeout:45000}
+        tool-calling-supported: ${custom.ai-model.ps-demo.chat-model.tool-calling-supported:false}
     teacher-ai:
       chat-model:
         supplier: ${custom.ai-model.teacher-ai.chat-model.supplier}

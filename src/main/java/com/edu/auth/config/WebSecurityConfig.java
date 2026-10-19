@@ -71,6 +71,7 @@ public class WebSecurityConfig {
                         "/api/user/avatar/image",
                         "/api/rag/kb/cover",
                         "/api/rag/chat/image",
+                        "/api/ps-demo/problem-ai/chat",
                           "/api/rag/files/preview",
                           "/api/course-files/**",
                         "/api/gov-materials/file"
